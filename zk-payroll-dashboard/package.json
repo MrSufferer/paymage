@@ -1,0 +1,51 @@
+{
+  "name": "zk-payroll-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:smoke": "vitest run __tests__/smoke/",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^14.5.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.330.0",
+    "next": "14.1.0",
+    "next-themes": "^0.4.6",
+    "react": "^18",
+    "react-dom": "^18",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.3.6",
+    "zustand": "5.0.10"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20.19.33",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.1.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "jsdom": "^25.0.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

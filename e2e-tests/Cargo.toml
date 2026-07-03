@@ -1,0 +1,36 @@
+[package]
+name = "e2e-tests"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# workspace
+asp-membership = { workspace = true }
+asp-non-membership = { workspace = true }
+circom-groth16-verifier = { workspace = true }
+# Circuit dependencies
+circuits = { workspace = true, features = ["std"] }
+# Contract dependencies
+contract-types = { workspace = true }
+payroll = { workspace = true }
+pool = { workspace = true }
+soroban-utils = { workspace = true }
+# Prover / witness (native, for real proof generation)
+prover = { workspace = true }
+witness = { workspace = true }
+# Shared deps
+tx-planner = { workspace = true }
+types = { workspace = true }
+zkhash = { workspace = true }
+
+# external
+anyhow = { workspace = true }
+num-bigint = { workspace = true }
+serde_json = { workspace = true }
+soroban-sdk = { workspace = true, features = ["testutils"] }
+
+[lints]
+workspace = true

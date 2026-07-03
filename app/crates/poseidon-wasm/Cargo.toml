@@ -1,0 +1,26 @@
+[package]
+name = "poseidon-wasm"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Browser WASM Poseidon2 primitives (BN254) for the payroll Merkle tree — wraps the `zkhash` crate"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# internal
+zkhash = { workspace = true }
+# external
+ark-ff = { workspace = true }
+getrandom = { version = "0.2", default-features = false, features = ["js"] }
+hex = { workspace = true }
+wasm-bindgen = { workspace = true }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lints]
+workspace = true
