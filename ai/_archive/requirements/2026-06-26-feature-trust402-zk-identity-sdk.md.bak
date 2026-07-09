@@ -1,0 +1,78 @@
+---
+phase: requirements
+title: Requirements & Problem Understanding
+description: ZK identity SDK for x402 agents — give AI agents a verifiable identity, role, and spend budget
+---
+
+# Requirements & Problem Understanding
+
+## Problem Statement
+
+AI agents need **verifiable identity** to participate in x402 payments. Today:
+- x402 enables payment for HTTP resources (APIs, compute, data)
+- x402 facilitator verifies payment, but not **who** is paying
+- No ZK-native identity layer for agents — can't prove "I am an agent with role X and budget Y"
+
+**Who is affected**: AI agent developers building autonomous payment flows. Agent frameworks (LangChain, CrewAI, etc.) need a standard identity primitive. Protocols building on x402 need identity attestation.
+
+**Current workaround**: None. Agents use API keys or OAuth — not ZK-verifiable, not composable with x402.
+
+## Goals & Objectives
+
+**Primary goals**:
+1. Ship `@trust402/identity` as a standalone npm package with TypeScript types
+2. Ship `@trust402/roles` with improved developer experience (CLI, docs)
+3. Ship `@trust402/protocol` (`wrapFetchWithProof`) as a drop-in fetch wrapper for x402 clients
+4. Working demo that shows full flow: agent identity → role proof → x402 payment
+
+**Non-goals**:
+- Privacy pool (killed — x402 agent market not mature enough)
+- TEE roll-up (deferred — future work)
+- Agent service / Node.js WASM prover (killed)
+- Multi-chain support (Base/Soroban only for now)
+- Stellar 8004 registry integration beyond identity (deferred)
+
+## User Stories & Use Cases
+
+**As an AI agent developer**, I want to give my agent a ZK identity so it can prove its role and budget to x402 resource servers.
+
+**As an x402 resource server operator**, I want to verify that a requesting agent has a valid role and hasn't exceeded its spend limit, without trusting the agent's word.
+
+**As a protocol builder**, I want to compose @trust402/identity into my agent framework so identity is a primitive.
+
+**Use cases**:
+- Agent pays for LLM tokens via x402 — resource server verifies agent role and budget via ZK proof
+- Agent pays for data API — ZK proof attestations to Lemma oracle
+- Multi-agent coordination — agent proves membership in a trusted set (ASP) without revealing which agent
+
+## Success Criteria
+
+1. `pnpm --filter @trust402/identity build` succeeds, exports TypeScript types
+2. `pnpm --filter @trust402/protocol test` passes — `wrapFetchWithProof` composes correctly
+3. Demo (`pnpm demo:agent`) runs end-to-end: identity generation → role proof → x402 payment
+4. npm package published with README, TypeDoc, usage example
+5. All existing tests pass with >80% coverage on changed code
+
+## Constraints & Assumptions
+
+**Technical constraints**:
+- Groth16 on BN254 — reuse existing `@lemmaoracle/sdk` for proof submission
+- Lemma oracle — off-chain proof aggregation + on-chain settlement (already integrated)
+- TypeScript strict mode — all trust402 packages already use it
+- FP style — already enforced via eslint-plugin-functional
+
+**Assumptions**:
+- Agent wallet: USDC on Base Sepolia with EIP-3009 delegation (demo requires this)
+- x402 facilitator must be running for demo (Base Sepolia testnet)
+- x402 protocol adoption continues — SDK ships regardless of market timing
+- Lemma oracle API stable — no changes to proof submission interface
+
+## Questions & Open Items
+
+| Question | Status |
+|----------|--------|
+| Package namespace — publish to npm under `@trust402/` or `@lemmaoracle/`? | **Open** — currently `@trust402/` but Lemma branding may be preferred |
+| How should agent credential issuance work? | **Open** — demo generates self-attested credential; no CA/issuer flow |
+| Should we support non-Groth16 proving systems (Halo2, PLONK)? | **Deferred** — ships with Groth16 first |
+| Who is the expected consumer — agent frameworks or individual developers? | **Open** — affects API surface design |
+| Stellar 8004 registry — integrate or leave as future work? | **Deferred** — identity SDK works without it |

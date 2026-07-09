@@ -3,7 +3,7 @@ import type { SessionPayload, UserRole } from '@/types';
 export const SESSION_COOKIE_NAME = 'zk-payroll-session';
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function getSecret(): string {
+export function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error('SESSION_SECRET must be at least 32 characters');

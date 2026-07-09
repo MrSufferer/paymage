@@ -1,0 +1,141 @@
+---
+phase: planning
+title: Project Planning & Task Breakdown
+description: Ship trust402 ZK identity SDK — harden existing packages, publish to npm
+---
+
+# Project Planning & Task Breakdown
+
+## Milestones
+
+- [ ] **M1**: All packages pass `pnpm build` + `pnpm type-check` + `pnpm lint`
+- [ ] **M2**: Each package has tests, README, TypeDoc exports
+- [ ] **M3**: Demo runs end-to-end without modification
+- [ ] **M4**: npm packages published (`@trust402/identity`, `@trust402/roles`, `@trust402/protocol`)
+- [ ] **M5**: Old x402-agent-privacy-pool docs archived
+
+## Task Breakdown
+
+### Phase 1: Audit & Triage
+
+- [ ] **1.1** Audit each trust402 package for build/type-check/lint status
+  - Run `pnpm --filter @trust402/identity build` and note errors
+  - Run `pnpm --filter @trust402/roles build` and note errors
+  - Run `pnpm --filter @trust402/protocol build` and note errors
+  - Run `pnpm --filter @trust402/cli build` and note errors
+  - Outcome: List of blocking issues per package
+
+- [ ] **1.2** Audit test coverage per package
+  - Run `pnpm --filter @trust402/protocol test` (only package with test command in package.json)
+  - Outcome: Coverage report, missing tests identified
+
+### Phase 2: Hardening
+
+- [ ] **2.1** Fix build errors in @trust402/identity
+  - Outcome: `pnpm --filter @trust402/identity build` succeeds
+
+- [ ] **2.2** Fix build errors in @trust402/roles
+  - Outcome: `pnpm --filter @trust402/roles build` succeeds
+
+- [ ] **2.3** Fix build errors in @trust402/protocol
+  - Outcome: `pnpm --filter @trust402/protocol build` succeeds
+
+- [ ] **2.4** Fix build errors in @trust402/cli
+  - Outcome: `pnpm --filter @trust402/cli build` succeeds
+
+- [ ] **2.5** Add tests to packages missing them (@trust402/identity, @trust402/roles)
+  - Outcome: Vitest tests for core logic
+
+### Phase 3: Documentation & Publishing
+
+- [ ] **3.1** Write README for @trust402/identity
+  - Usage example, API reference, circuit ID, dependencies
+  - Outcome: README.md in packages/identity/
+
+- [ ] **3.2** Write README for @trust402/roles
+  - Usage example, gate configuration, circuit ID
+  - Outcome: README.md in packages/roles/
+
+- [ ] **3.3** Write README for @trust402/protocol (may already exist)
+  - `wrapFetchWithProof` usage, configuration options
+  - Outcome: README.md in packages/protocol/
+
+- [ ] **3.4** Verify demo runs end-to-end
+  - `pnpm demo:resource` + `pnpm demo:agent` — both succeed
+  - Outcome: Demo fully working
+
+- [ ] **3.5** Publish packages to npm
+  - Requires: npm account, publish access to @trust402 namespace
+  - Outcome: `npm publish --access public` for each package
+
+### Phase 4: Cleanup
+
+- [ ] **4.1** Archive old x402-agent-privacy-pool docs
+  - Delete or rename `docs/ai/requirements/2026-06-25-feature-x402-agent-privacy-pool.md`
+  - Delete or rename `docs/ai/design/2026-06-25-feature-x402-agent-privacy-pool.md`
+  - Delete or rename `docs/ai/planning/2026-06-25-feature-x402-agent-privacy-pool.md`
+  - Outcome: Only trust402 SDK docs remain
+
+- [ ] **4.2** Update trust402/CLAUDE.md if needed
+  - Ensure it reflects SDK scope (not the killed privacy pool)
+
+## Dependencies
+
+```
+1.1 (audit)
+  │
+  ├─► 2.1 (identity build)
+  ├─► 2.2 (roles build)
+  ├─► 2.3 (protocol build)
+  └─► 2.4 (cli build)
+            │
+            ▼
+      2.5 (add tests)
+            │
+            ▼
+      3.1-3.4 (docs + demo)
+            │
+            ▼
+      3.5 (npm publish)
+            │
+            ▼
+      4.1-4.2 (cleanup)
+```
+
+## Timeline & Estimates
+
+| Task | Estimate |
+|------|----------|
+| 1.1 Audit | 1h |
+| 1.2 Test audit | 1h |
+| 2.1 Fix identity build | 2h |
+| 2.2 Fix roles build | 2h |
+| 2.3 Fix protocol build | 2h |
+| 2.4 Fix cli build | 2h |
+| 2.5 Add tests | 4h |
+| 3.1 Identity README | 1h |
+| 3.2 Roles README | 1h |
+| 3.3 Protocol README | 1h |
+| 3.4 Demo verification | 2h |
+| 3.5 npm publish | 1h |
+| 4.1 Archive old docs | 1h |
+| 4.2 Update CLAUDE.md | 1h |
+| **Total** | **~22h** |
+
+**Buffer**: +20% = **~26h** (3-4 days)
+
+## Risks & Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| WASM proving fails in Node.js env | Low | Medium | Demo uses browser WASM; Node.js is stretch goal |
+| @lemmaoracle/sdk breaks API | Low | High | Pin to specific version; mock in tests |
+| npm namespace @trust402 taken | Low | High | Switch to @lemmaoracle scope |
+| Demo requires x402 facilitator running | Medium | Medium | Document facilitator requirements in README |
+
+## Resources Needed
+
+- npm account with publish access to @trust402 namespace
+- Base Sepolia USDC for demo (~$10 sufficient)
+- x402 facilitator running (or documented mock flow)
+- Node.js 18+ for local dev

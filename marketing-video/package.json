@@ -1,0 +1,24 @@
+{
+  "name": "paymage-marketing-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render PayMageDemo out/paymage-demo.mp4 --codec h264 --crf 18 --color-space bt709",
+    "render-fast": "remotion render PayMageDemo out/paymage-demo.mp4 --codec h264 --crf 23 --concurrency 8"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.434",
+    "@remotion/google-fonts": "4.0.434",
+    "@remotion/noise": "4.0.434",
+    "@remotion/transitions": "4.0.434",
+    "lucide-react": "^0.330.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.434"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}

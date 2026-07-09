@@ -1,0 +1,196 @@
+---
+phase: design
+title: System Design & Architecture
+description: Psy-style privacy rollup on Stellar — client-side ZK proving, Nova folding, Soroban settlement
+---
+
+# System Design & Architecture
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    AgentA["Agent A<br/>(WASM runtime)"]
+    AgentB["Agent B<br/>(WASM runtime)"]
+    Agg["Aggregator<br/>(folds proofs)"]
+    Stellar["Stellar/Soroban<br/>(settlement)"]
+    Bridge["Bridge Contract<br/>(Soroban)"]
+
+    AgentA -->|executes tx locally| ProofA["ZK Proof A<br/>(Nova fold)"]
+    AgentB -->|executes tx locally| ProofB["ZK Proof B<br/>(Nova fold)"]
+    ProofA -->|proof| Agg
+    ProofB -->|proof| Agg
+    Agg -->|aggregated<br/>proof| Stellar
+    Agg -->|state diff| Stellar
+    Stellar -->|verify| Bridge
+
+    Bridge -->|locks tokens| Stellar
+
+    subgraph "Off-chain"
+        ProofA
+        ProofB
+        Agg
+    end
+
+    subgraph "On-chain (Stellar)"
+        Stellar
+        Bridge
+    end
+```
+
+**Key difference from prior approach (x402-agent-privacy-pool)**:
+- No server-side WASM prover — each agent proves locally
+- No Groth16 per transaction — Nova/SuperNova folding for recursive aggregation
+- No single agent custodial — agents execute and prove independently
+- No per-transaction on-chain verification — aggregate proof settles once for many transactions
+
+## Components
+
+### Agent Runtime (WASM)
+
+Agent runs transaction logic in a WASM sandbox (browser or Node.js). Generates a ZK proof of valid execution using a zkVM (RISC-V + Halo2) or custom circuit.
+
+**Responsibilities**:
+- Execute local transactions (read note commitments, produce nullifiers, produce new commitments)
+- Generate ZK proof of valid state transition
+- Send proof + state diff to aggregator
+
+**Reuses**: `app/crates/core/prover/` — compiled to WASM, already exists
+
+### Aggregator
+
+Permissioned process that collects agent proofs and folds them into one aggregate proof using Nova/SuperNova (incrementally verifiable computation / folding scheme).
+
+**Responsibilities**:
+- Receive proofs from agents (gossip protocol or direct submission)
+- Fold N proofs into one via Nova recursion
+- Submit aggregate proof + aggregated state diff to Stellar
+- Emit rollup block events
+
+**Nova vs SuperNova**:
+- Nova: each proof is a step of computation — good for simple state machines
+- SuperNova: proofs can use different programs (different transaction types) — more flexible
+
+### Soroban Verifier Contract
+
+Deployed on Stellar testnet. Verifies the final aggregate ZK proof.
+
+**Responsibilities**:
+- Verify aggregate ZK proof (calls Stellar's built-in ZK verifier or a custom verifier)
+- Update rollup state root (Merkle root of aggregated state)
+- Emit block confirmed event
+
+**Interface** (TBD):
+```
+fn verify_aggregate_proof(
+    state_root: Uint256,
+    aggregate_proof: Vec<u8>,
+    aggregated_state_diff: Vec<u8>,
+) -> Bool
+```
+
+### Bridge Contract
+
+Soroban token contract that holds bridged assets. Users deposit Stellar native tokens (or Stellar Assets) into the bridge. Tokens are locked in the rollup state.
+
+**Responsibilities**:
+- Hold token balances for rollup users
+- Process deposits (lock tokens into bridge)
+- Process withdrawals (release tokens from bridge to user wallet)
+- Emit deposit/withdrawal events
+
+**Interface** (TBD):
+```
+fn deposit(user: Address, amount: i128)
+fn withdraw(user: Address, amount: i128, proof: Vec<u8>)
+```
+
+## Data Models
+
+### Rollup State
+
+```
+RollupState {
+    state_root: Uint256,           // Merkle root of all note commitments
+    nullifier_root: Uint256,       // Merkle root of spent nullifiers
+    block_height: u64,              // Number of aggregate proofs settled
+    totalDeposits: Uint256,        // Total tokens locked in bridge
+}
+```
+
+### Note (UTXO)
+
+```
+Note {
+    secret: Uint8Array,            // 32-byte random, known only to owner
+    commitment: Uint256,           // Poseidon2(secret, value, owner) — public commitment
+    nullifier: Uint256,            // Poseidon(secret) — prevents double-spend
+    value: u64,                    // Note denomination
+    owner: Address,               // Owner's public key
+}
+```
+
+### State Diff
+
+```
+StateDiff {
+    new_commitments: Vec<Uint256>,     // Notes being created
+    spent_nullifiers: Vec<Uint256>,    // Notes being consumed
+    deposits: Vec<Deposit>,
+    withdrawals: Vec<Withdrawal>,
+}
+```
+
+### ZK Proof (Nova fold step)
+
+Each agent generates a proof that:
+1. I know a note with commitment C and secret s
+2. The note is not already spent (nullifier not in nullifier set)
+3. After spending, I create a new note with commitment C' to recipient
+4. Value is conserved (input value = output value + fees)
+5. All hashes are computed correctly
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| ZK proving system | Halo2 + Nova folding | Native recursion, production proven (Zcash, Scroll), non-EVM compatible |
+| State model | UTXO (notes) | Matches existing pool contract. Nullifier pattern = simple double-spend check. |
+| Folding scheme | Nova (SuperNova if multi-program needed) | Incrementally verifiable — aggregate many steps into one proof |
+| Agent runtime | WASM (existing prover) | Already exists in `app/crates/core/prover/`. Compile to WASM. |
+| Aggregator | Permissioned (single party for POC) | Decentralized aggregation is future work |
+| Settlement | Soroban contract | Existing pool contract modified, or new rollup verifier |
+| Bridge | Existing pool token contract | Modify to support deposit/withdraw |
+| Privacy | ZK hides amounts, sender, recipient | Nullifiers + commitments = standard ZK privacy pattern |
+
+## Alternative Approaches Considered
+
+**Groth16 per transaction (prior approach)**:
+- Pro: Simple, proven
+- Con: 5-30s per proof, no aggregation, server-side prover required
+- Verdict: Rejected — too slow for machine-speed microtransactions
+
+**TEE roll-up**:
+- Pro: Faster execution, simpler ZK (only proves TEE attestation)
+- Con: Hardware dependency, Intel SGX vulnerabilities, trust in CPU manufacturer
+- Verdict: Deferred — pure ZK preferred for trust minimization
+
+**Optimistic roll-up**:
+- Pro: No ZK proving overhead, fast execution
+- Con: Fraud proof window (finality delay), requires watchers, not private during challenge period
+- Verdict: Rejected — need atomic finality, no delay
+
+**zkVM vs custom circuits**:
+- zkVM (RISC-V + Halo2): Agent executes RISC-V binary. ZK proves execution trace. Flexible, slower.
+- Custom circuits (Halo2): Hand-written for specific operations. Faster, less flexible.
+- Verdict: Use existing prover (WASM) + custom circuit for note operations (Poseidon, merkle)
+
+## Non-Functional Requirements
+
+- **Proof generation time (agent)**: <100ms per transaction (WASM, client-side)
+- **Aggregation time**: <10s for N=100 proofs (Nova folding)
+- **Settlement time (Stellar)**: <5s for proof verification
+- **Throughput**: ≥1000 transactions per aggregate proof
+- **Privacy**: Transaction amounts, sender, recipient not derivable from on-chain data
+- **Finality**: Sub-second execution, Stellar settlement in <5s after aggregation
+- **Bridge**: No loss of funds during bridging

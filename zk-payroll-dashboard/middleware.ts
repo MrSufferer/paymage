@@ -21,6 +21,14 @@ function buildCsp(): string {
       'https://soroban-testnet.stellar.org',
       'https://horizon.stellar.org',
       'https://soroban-rpc.stellar.org',
+      // Pinata IPFS pinning + gateway (encrypted salary blobs).
+      'https://api.pinata.cloud',
+      'https://gateway.pinata.cloud',
+      'https://*.pinata.cloud',
+      // Public IPFS gateways as a fallback for fetching blobs.
+      'https://ipfs.io',
+      'https://*.ipfs.nftstorage.link',
+      'https://dweb.link',
     ],
     'worker-src': ["'self'", 'blob:'],
     'child-src': ["'self'", 'blob:'],

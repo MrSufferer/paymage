@@ -1,0 +1,170 @@
+---
+phase: planning
+title: Project Planning & Task Breakdown
+description: Ship Psy-style privacy rollup POC on Stellar — client-side ZK proving, Nova aggregation, Soroban settlement
+---
+
+# Project Planning & Task Breakdown
+
+## Milestones
+
+- [ ] **M1**: ZK circuit for note transactions (validity, nullifier, value conservation) compiles + passes tests
+- [ ] **M2**: Agent WASM prover generates proofs locally in <100ms
+- [ ] **M3**: Aggregator folds N proofs via Nova into one aggregate proof
+- [ ] **M4**: Soroban verifier contract accepts and verifies aggregate proof
+- [ ] **M5**: Bridge contract (deposit/withdraw) functional
+- [ ] **M6**: End-to-end POC — two agents send private payments, aggregate proof settles to Stellar testnet
+
+## Task Breakdown
+
+### Phase 1: ZK Circuit Design
+
+- [ ] **1.1** Design note circuit
+  - Inputs: old_note_commitment, old_note_nullifier, new_note_commitment, value, fee, signature
+  - Constraints: Poseidon hash, merkle proof, value conservation
+  - Outcome: Circom or Halo2 circuit that compiles
+
+- [ ] **1.2** Implement note circuit in Halo2
+  - Reuse existing Poseidon2 implementation from `contracts/soroban-utils/`
+  - Implement merkle tree verification in circuit
+  - Outcome: Halo2 circuit, passes test with known inputs
+
+- [ ] **1.3** Add Nova proof step circuit
+  - Wrap note circuit in Nova step (R1CS → IVC)
+  - Outcome: `NoteProofStep` circuit — proves one note transaction
+
+### Phase 2: Agent Prover (WASM)
+
+- [ ] **2.1** Port prover to Halo2 (replace Groth16)
+  - Current prover: `app/crates/core/prover/` uses Groth16
+  - New prover: Halo2/Nova proving path
+  - Outcome: `cargo build --target wasm32-unknown-unknown` produces WASM
+
+- [ ] **2.2** Benchmark prover in WASM
+  - Measure proof generation time for one note transaction
+  - Target: <100ms
+  - Outcome: Benchmarks, identified bottlenecks
+
+- [ ] **2.3** WASM runtime integration
+  - Verify prover works in browser (WebAssembly) and Node.js
+  - Outcome: WASM module loads and generates proofs in both envs
+
+### Phase 3: Aggregator
+
+- [ ] **3.1** Implement Nova folding
+  - Take `NoteProofStep` proofs from agents
+  - Fold into one aggregate proof via Nova recursion
+  - Outcome: Aggregate proof verifiable on Stellar
+
+- [ ] **3.2** Aggregator service
+  - HTTP endpoint for agents to submit proofs
+  - Batching logic: fold N proofs before submitting to chain
+  - Outcome: Service that aggregates and submits
+
+- [ ] **3.3** Aggregator激励机制 (POC: permissioned)
+  - POC uses single centralized aggregator
+  - No token bribe or decentralized consensus yet
+
+### Phase 4: Soroban Verifier Contract
+
+- [ ] **4.1** Soroban ZK verifier
+  - Investigate: does Soroban have built-in ZK verification for Halo2/Nova?
+  - If no: implement G1/G2 point arithmetic + pairing check in Soroban
+  - Outcome: `verify_aggregate_proof` function on Soroban
+
+- [ ] **4.2** Rollup state contract
+  - Store `state_root`, `nullifier_root`, `block_height`
+  - `verify_aggregate_proof` updates state
+  - Outcome: Contract stores and updates rollup state
+
+- [ ] **4.3** Bridge contract (modify existing pool)
+  - Existing `contracts/pool/` handles token custody
+  - Add deposit/withdraw for bridging
+  - Outcome: Users can bridge tokens to rollup
+
+### Phase 5: End-to-End POC
+
+- [ ] **5.1** Agent A → Agent B private payment
+  - Both agents generate ZK proofs locally
+  - Proofs submitted to aggregator
+  - Aggregate proof settles to Stellar
+  - Outcome: Private payment visible on-chain only as aggregated state diff
+
+- [ ] **5.2** Deposit + withdraw flow
+  - User deposits tokens to bridge
+  - User sends private payment via rollup
+  - Recipient withdraws from bridge
+  - Outcome: Full round-trip works
+
+## Dependencies
+
+```
+1.1 (circuit design) → 1.2 (implement Halo2) → 1.3 (Nova step)
+                                                    │
+1.2 ───────────────────────────────────────────────┘
+        │
+        ▼
+2.1 (port prover to Halo2) ──► 2.2 (benchmark) ──► 2.3 (WASM runtime)
+        │
+        │◄──────────────────────────────────────────┘
+        │
+        ▼
+3.1 (Nova folding) ──► 3.2 (aggregator service) ──► 3.3 (POC aggregator)
+        │
+        ▼
+4.1 (Soroban ZK verifier) ──► 4.2 (rollup state) ──► 4.3 (bridge contract)
+        │
+        └────────────────────────────┬───────────────┘
+                                    ▼
+                            5.1 (E2E agent→agent)
+                                    │
+                                    ▼
+                            5.2 (deposit+withdraw)
+```
+
+**Key sequencing notes**:
+- Phase 1 and 2 are sequential — circuit drives prover
+- Phase 3 can start after Phase 2.1 (proof generation works)
+- Phase 4 (Soroban) can start in parallel with Phase 3 — aggregator and verifier are independent until integration
+- Phase 5 requires Phase 3 + 4 complete
+
+## Timeline & Estimates
+
+| Task | Estimate |
+|------|----------|
+| 1.1 Circuit design | 8h |
+| 1.2 Halo2 note circuit | 16h |
+| 1.3 Nova step circuit | 8h |
+| 2.1 Port prover to Halo2 | 24h |
+| 2.2 Benchmark prover | 4h |
+| 2.3 WASM runtime | 4h |
+| 3.1 Nova folding | 24h |
+| 3.2 Aggregator service | 8h |
+| 3.3 POC aggregator | 4h |
+| 4.1 Soroban ZK verifier | 24h |
+| 4.2 Rollup state contract | 8h |
+| 4.3 Bridge contract | 8h |
+| 5.1 E2E agent→agent | 8h |
+| 5.2 Deposit+withdraw | 8h |
+| **Total** | **~156h** |
+
+**Buffer**: +30% = **~200h** (5 weeks full-time)
+
+## Risks & Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Halo2 WASM compilation fails for browser | Medium | High | Use `wasm-pack` with `wasm-bindgen`. Pre-test wasm32-unknown-unknown target. |
+| Soroban has no ZK verifier for Halo2 proofs | High | Critical | Fall back to Groth16 (one final proof instead of recursive). Or deploy verifier on Ethereum L1 and use as oracle. |
+| Nova folding integration harder than expected | Medium | High | Use icicle (NVIDIA GPU acceleration) or check if existing Nova impl works with our curves |
+| Stellar RPC event retention (7 days) blocks recovery | Low | Medium | Document limitation; POC can use a centralized observer |
+| WASM prover too slow for <100ms target | Medium | Medium | 100ms is aspirational; accept 500ms for POC |
+
+## Resources Needed
+
+- Rust with `halo2` + `halo2wrong` + `nova` crates (check versions)
+- `wasm-pack` for WASM compilation
+- Stellar testnet account with XLM for gas
+- Soroban CLI for contract deployment
+- Halo2 proving keys (trusted setup if needed — depends on scheme)
+- Existing `contracts/pool/` as reference for token bridge

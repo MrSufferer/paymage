@@ -55,8 +55,10 @@ contracts/**/test_snapshots
 e2e-tests/test_snapshots/*
 
 # App
+node_modules
 app/node_modules
 /dist/
+out/
 
 # Playwright E2E
 app/e2e/.freighter-extension/

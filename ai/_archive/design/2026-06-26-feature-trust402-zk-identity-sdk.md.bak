@@ -1,0 +1,150 @@
+---
+phase: design
+title: System Design & Architecture
+description: ZK identity SDK architecture for x402 agents — existing trust402 packages, minimal changes
+---
+
+# System Design & Architecture
+
+## Architecture Overview
+
+```mermaid
+graph LR
+    Agent["Agent<br/>(keypair)"]
+    Identity["@trust402/identity<br/>agent-identity circuit"]
+    Roles["@trust402/roles<br/>role-spend-limit circuit"]
+    Protocol["@trust402/protocol<br/>wrapFetchWithProof"]
+    Lemma["Lemma Oracle<br/>(off-chain + on-chain)"]
+    Facilitator["x402 Facilitator<br/>(payment verification)"]
+    ResourceServer["Resource Server<br/>(x402-paid API)"]
+
+    Agent -->|credential| Identity
+    Agent -->|ZK proof| Identity
+    Identity -->|submit| Lemma
+    Agent -->|proof + payment| Protocol
+    Protocol -->|x402 headers + proof| Facilitator
+    Protocol -->|x402 headers + proof| ResourceServer
+    ResourceServer -->|verify| Lemma
+```
+
+**Components (all existing, no new code):**
+
+| Package | Responsibility | Status |
+|---------|---------------|--------|
+| `@trust402/identity` | Proves credential validity (not expired, not revoked) | Built |
+| `@trust402/roles` | Proves agent role + spend limit satisfy gate | Built |
+| `@trust402/protocol` | `wrapFetchWithProof` — composes proof into fetch pipeline | Built |
+| `@trust402/cli` | Agent identity operations CLI (`trust402`) | Built |
+| `@trust402/demo` | End-to-end demo with x402 resource server | Built |
+
+**Technology stack**: TypeScript (packages), Groth16/Circom (circuits), BN254 (curve), Lemma oracle (proof settlement), Base Sepolia (x402 facilitator).
+
+## Data Models
+
+### Credential (agent-identity-v1 circuit)
+```
+secret: Uint8Array          // 32-byte random, known only to agent
+commitment: Uint8Array      // Poseidon2(secret, issuer, expiry) — public identity
+nullifier: Uint8Array      // Poseidon2(secret) — prevents double-spending
+```
+
+### RoleProof (role-spend-limit-v1 circuit)
+```
+roleHash: Uint32            // Agent role (bound into circuit)
+spendLimit: Uint64          // Max spend per transaction
+nullifier: Uint256          // From credential — proves unspent
+merkleProof: MerkleProof    // Proves credential in registered set (ASP)
+```
+
+### AgentIdentity (TypeScript)
+```typescript
+interface AgentIdentity {
+  keypair: { secret: Uint8Array; publicKey: string };
+  credential: {
+    commitment: Uint8Array;
+    nullifier: Uint8Array;
+    expiry: number;
+    issuer: string;
+  };
+}
+```
+
+## API Design
+
+### wrapFetchWithProof (primary entry point)
+
+```typescript
+// Buyer-side: compose ZK proof generation into any fetch call
+const proofFetch = wrapFetchWithProof(fetch, {
+  artifact: RoleArtifact,      // from @trust402/roles
+  gate: { role: 1, limit: 1000n },
+  lemmaClient: new LemmaClient({ apiKey: process.env.LEMMA_API_KEY }),
+  credential: agentIdentity.credential,
+});
+
+// Then use proofFetch like regular fetch — proof auto-generated per request
+const response = await proofFetch('https://api.example.com/data', {
+  headers: { 'x402-payment': '1000' },
+});
+```
+
+### trust402 CLI
+
+```bash
+# Generate agent identity
+trust402 identity generate --output ./identity.json
+
+# Generate role proof
+trust402 proof role --identity ./identity.json --role premium --limit 10000
+
+# Submit to Lemma oracle
+trust402 submit --proof ./proof.json --lemma-url https://lemma.example.com
+```
+
+## Component Details
+
+### @trust402/protocol — ProofBeforePayment middleware
+
+`wrapFetchWithProof` intercepts fetch calls:
+1. Checks if request needs proof (configurable gate)
+2. Generates ZK proof via WASM (browser) or Node.js
+3. Attaches proof to request headers (`X-ZK-Proof`, `X-Credential-Commitment`)
+4. `wrapFetchWithPayment` then adds x402 payment headers
+5. If proof generation fails → request rejected before payment attempted
+
+`wrapFetchWithPayment` wraps x402 client:
+1. Attaches `Authorization` header with x402 payment
+2. Handles 402 responses — retry or fail based on config
+
+### @trust402/identity — Credential lifecycle
+
+1. **Issue**: Agent generates secret + commitment. Commitment published to Lemma oracle. No on-chain registration required.
+2. **Prove**: Agent generates ZK proof of credential validity (not expired, not revoked) using `agent-identity-v1` circuit.
+3. **Submit**: Proof submitted to Lemma oracle. Oracle verifies on-chain. Attestation stored on-chain (Base Sepolia).
+
+### @trust402/roles — Role enforcement
+
+`role-spend-limit-v1` circuit proves:
+- Agent's role hash matches gate (e.g., role 1 = premium tier)
+- Agent's spend limit >= payment amount
+- Credential nullifier not already spent
+- Merkle proof: credential commitment is in the registered set (ASP)
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Proving system | Groth16 + BN254 | Already integrated via @lemmaoracle/sdk. Works. No change needed. |
+| Hash function | Poseidon2 (inside circuit), SHA-256 (outside) | Standard for ZK circuits. Top-nibble masking for SHA-256. |
+| Credential issuance | Self-attested (demo), no CA | No trusted issuer yet. SDK ships with self-attested flow. |
+| Proof submission | Lemma oracle | Already integrated. Off-chain proving + on-chain settlement. |
+| Agent identity storage | In-memory (demo), file (CLI) | No wallet integration yet. Identity is a keypair + credential. |
+| Proof caching | None | Each request generates fresh proof. No batching. |
+| Payment verification | x402 facilitator | Already deployed on Base Sepolia. |
+
+## Non-Functional Requirements
+
+- **Proving time**: <5s for role-spend-limit proof (existing circuit performance)
+- **SDK bundle size**: <500KB WASM for circuits + TypeScript types
+- **Compatibility**: Node.js 18+, browser (Chrome/Firefox/Safari), TypeScript 5.x
+- **Security**: Secret never leaves agent's memory. Nullifier prevents double-spending.

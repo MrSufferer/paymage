@@ -280,18 +280,39 @@ class RealZkEngine implements ZkEngine {
     // Build the employee Merkle tree from the raw employee data.
     // The circuit PayrollBatch(10, 10) processes 10 slots per batch;
     // real employees occupy the first slots, padding (0,0,0) fills the rest.
-    const employeeId = request.privateInputs.employeeId;
-    const salaryAmount = request.privateInputs.salaryAmount;
-    const salt = request.privateInputs.salt ?? "0";
-    if (!employeeId || !salaryAmount) {
+    //
+    // Private inputs are passed as comma-separated lists so a single proof
+    // request covers the whole batch (matching the e2e runner shape):
+    //   employeeId   = "id1,id2,..."
+    //   salaryAmount = "s1,s2,..."
+    //   salt         = "salt1,salt2,..."  (optional; defaults to "0" per slot)
+    const employeeIds = (request.privateInputs.employeeId ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const salaryAmounts = (request.privateInputs.salaryAmount ?? "")
+      .split(",")
+      .map((s) => s.trim());
+    const salts = (request.privateInputs.salt ?? "")
+      .split(",")
+      .map((s) => s.trim());
+
+    if (employeeIds.length === 0) {
       throw new Error(
-        "RealZkEngine requires raw employeeId and salaryAmount in privateInputs",
+        "RealZkEngine requires at least one employee in privateInputs.employeeId",
+      );
+    }
+    if (salaryAmounts.length !== employeeIds.length) {
+      throw new Error(
+        `RealZkEngine: employeeId (${employeeIds.length}) and salaryAmount (${salaryAmounts.length}) count mismatch`,
       );
     }
 
-    const employees: EmployeeSlot[] = [
-      { employeeId, salaryAmount, salt },
-    ];
+    const employees: EmployeeSlot[] = employeeIds.map((id, i) => ({
+      employeeId: id,
+      salaryAmount: salaryAmounts[i] ?? "0",
+      salt: salts[i] ?? "0",
+    }));
 
     const tree = await buildMerkleTree(employees, 10, 10);
     const actualCount = tree.actualEmployeeCount;
@@ -308,11 +329,9 @@ class RealZkEngine implements ZkEngine {
       totalPayrollAmount: request.publicInputs.totalPayrollAmount,
       payrollPeriodId: request.publicInputs.payrollPeriodId,
       leaves: tree.proofs.map((proof, i) => ({
-        employeeId:
-          i < actualCount ? employeeId : "0",
-        salaryAmount:
-          i < actualCount ? salaryAmount : "0",
-        salt: i < actualCount ? salt : "0",
+        employeeId: i < actualCount ? employees[i].employeeId : "0",
+        salaryAmount: i < actualCount ? employees[i].salaryAmount : "0",
+        salt: i < actualCount ? employees[i].salt : "0",
         pathElements: proof.pathElements,
         pathIndices: proof.pathIndices,
       })),

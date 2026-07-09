@@ -1,0 +1,87 @@
+---
+phase: requirements
+title: Requirements & Problem Understanding
+description: Psy-style privacy rollup on Stellar — client-side ZK proving, recursive aggregation, settlement to Soroban
+---
+
+# Requirements & Problem Understanding
+
+## Problem Statement
+
+AI agents need **private transactions at machine speed**. Current state:
+- x402 enables payments for HTTP resources, but no privacy — every payment is traceable on-chain
+- Groth16/Circom proof generation is too slow for high-frequency micro-transactions (5-30s per proof)
+- No ZK rollup exists for Stellar — agents either self-custody (slow, bad UX) or use a trusted intermediary
+- The agent economy needs sub-second finality and near-zero marginal cost, but on-chain settlement can't provide this
+
+**Reference**: [Psy Protocol](https://psy.xyz/privacy) — client-side ZK proving, recursive aggregation, network verifies only aggregated proofs. Agents execute locally, prove locally, send only ZK proof + state diff to network.
+
+**Who is affected**: AI agents doing high-frequency private transactions. Agent frameworks. Anyone building agent-to-agent payments on Stellar.
+
+**Current workaround**: Centralized intermediaries or no privacy at all.
+
+## Goals & Objectives
+
+**Primary goals**:
+1. Agent executes transactions locally (off-chain) and generates ZK proof of correct execution — no server-side prover
+2. Recursive ZK aggregation — aggregate many agent proofs into one proof
+3. Final aggregated proof settles to Stellar (Soroban contract) — network verifies the aggregate, not individual transactions
+4. Private by default — transaction amounts, sender, recipient not visible on-chain
+5. Sub-second execution + near-zero marginal cost per transaction
+
+**Non-goals**:
+- Multi-chain (Stellar/Soroban only)
+- TEE-based approach (pure ZK — no trusted hardware)
+- Trusted setup ceremonies (use zkVM with transparent setup or PLONKish)
+- Agent identity layer (trust402/identity is a separate concern — this is purely transaction privacy)
+- x402 facilitator integration (separate concern — rollup handles settlement, not payment protocol)
+
+## User Stories & Use Cases
+
+**As an agent**, I want to execute a private transaction and have it settle to Stellar in one step, without waiting 5-30s for proof generation or trusting a server-side prover.
+
+**As a user**, I want to pay an agent for a service and have the payment be private — no on-chain link between my payment and the agent's withdrawal.
+
+**As a liquidity provider**, I want to deposit tokens into the rollup and earn fees from aggregate transaction volume, without knowing who is transacting.
+
+**Use cases**:
+- Agent-to-agent payments: Agent A pays Agent B privately. Both generate ZK proofs. Aggregator combines. Final proof settles to Stellar.
+- User-to-agent payments: User deposits into rollup, agent withdraws to external wallet — no link visible on-chain.
+- Micropayments: High-frequency, low-value payments batched into one aggregate proof. Marginal cost per tx → near zero.
+
+## Success Criteria
+
+1. Agent can generate a ZK proof of a valid state transition locally (in-browser or Node.js) in <100ms
+2. Aggregator can combine N agent proofs into one aggregate proof in <10s
+3. Final aggregate proof can be verified on Stellar (Soroban) in <5s
+4. Individual transaction amounts, sender, and recipient are not derivable from on-chain data
+5. Rollup handles ≥1000 transactions per aggregate proof
+6. POC demo: two agents send private payments, aggregate proof settles to Stellar testnet
+
+## Constraints & Assumptions
+
+**Technical constraints**:
+- Must build on Stellar/Soroban — no EVM compatibility
+- Existing pool contract (`contracts/pool/`) can be modified or replaced
+- No trusted setup ceremony required — prefer zkVM (RISC-V + Halo2) or PLONKish
+- Recursive aggregation requires a ZK proving system that supports recursion (Halo2, Groth16 + Accumulation, or Starky)
+- Stellar has no native ZK verifier — must deploy Soroban contract for proof verification
+
+**Assumptions**:
+- Agent can execute transaction logic locally (off-chain) — no need for shared contract state during execution
+- State model: UTXO (notes) or account-based? UTXO pairs well with ZK. Account-based simpler but heavier ZK.
+- Recursive aggregation done by a dedicated aggregator role (can be decentralized or permissioned)
+- Final settlement on Stellar = tokens transferred from rollup contract to recipient address
+- Bridge: Users deposit tokens to Soroban contract, tokens locked in rollup. Withdraw = tokens released from rollup.
+
+## Questions & Open Items
+
+| Question | Status |
+|----------|--------|
+| ZK backend — zkVM (RISC-V + Halo2) or custom Halo2 circuits? | **Open** — zkVM = slower proving, more flexible. Custom = faster, less general. |
+| Recursive aggregation — who aggregates? Dedicated aggregator role? | **Open** — permissioned aggregator (simpler), or decentralized (PoUW-style) |
+| State model — UTXO or account-based? | **Open** — UTXO better for ZK privacy (nullifier pattern). Account-based simpler integration with Soroban. |
+| Bridge design — existing pool token contract, or new wrap? | **Open** — existing Stellar token (Stellar Asset) vs new Soroban token |
+| How does agent execute off-chain? JS runtime? Wasmer? | **Open** — agent must run transaction logic locally to generate proof |
+| Aggregator incentive — token bribe, gas fees? | **Deferred** — POC can use centralized aggregator |
+| Genesis state — how does rollup initialize? | **Deferred** — POC starts with empty state |

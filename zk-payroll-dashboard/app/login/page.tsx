@@ -5,10 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useStellar } from '@/components/providers/StellarProvider';
 import { useWalletStore } from '@/stores/walletStore';
 
+interface ChallengeResponse {
+  txXdr: string;
+  token: string;
+  expiresAt: number;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { connect, isFreighterInstalled } = useStellar();
+  const { connect, signTx, isFreighterInstalled } = useStellar();
   const { publicKey, isConnected, isLoading } = useWalletStore();
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,20 +23,39 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isConnected || !publicKey) return;
+    const publicKeyStr = publicKey;
 
     async function createSession() {
       setIsCreatingSession(true);
       setError(null);
 
       try {
-        const res = await fetch('/api/auth/session', {
+        // 1. Fetch a server-issued challenge transaction for this wallet.
+        const challengeRes = await fetch(
+          `/api/auth/challenge?publicKey=${encodeURIComponent(publicKeyStr)}`,
+        );
+        if (!challengeRes.ok) {
+          const data = await challengeRes.json();
+          throw new Error(data.error || 'Failed to issue challenge');
+        }
+        const challenge = (await challengeRes.json()) as ChallengeResponse;
+
+        // 2. Ask Freighter to sign the challenge transaction. This proves
+        //    wallet ownership without exposing admin role spoofing.
+        const signedXdr = await signTx(challenge.txXdr);
+        if (!signedXdr) {
+          throw new Error('User rejected the signing challenge.');
+        }
+
+        // 3. Submit the signed challenge + token to the session endpoint.
+        const sessionRes = await fetch('/api/auth/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ publicKey }),
+          body: JSON.stringify({ publicKey: publicKeyStr, token: challenge.token, signedXdr }),
         });
 
-        if (!res.ok) {
-          const data = await res.json();
+        if (!sessionRes.ok) {
+          const data = await sessionRes.json();
           throw new Error(data.error || 'Failed to create session');
         }
 
@@ -43,7 +68,7 @@ export default function LoginPage() {
     }
 
     createSession();
-  }, [isConnected, publicKey, redirect, router]);
+  }, [isConnected, publicKey, redirect, router, signTx]);
 
   const handleConnect = async () => {
     setError(null);
@@ -76,7 +101,7 @@ export default function LoginPage() {
           {loading
             ? 'Connecting...'
             : isConnected
-              ? 'Creating session...'
+              ? 'Confirming wallet ownership...'
               : 'Connect Wallet'}
         </button>
 

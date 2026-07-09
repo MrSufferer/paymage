@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- PayMage logo — wizard/mage motif fused with proof ring -->
+  <!-- Palette: navy #0f1729, blue #3b82f6, green #10b981 (matches pitch deck) -->
+  <rect width="256" height="256" rx="48" fill="#0f1729"/>
+
+  <!-- Wizard hat silhouette — single clean triangle -->
+  <path d="M128 24 L184 168 L72 168 Z" fill="#3b82f6"/>
+  <!-- Hat brim -->
+  <rect x="64" y="168" width="128" height="14" rx="7" fill="#3b82f6"/>
+
+  <!-- Spell / spark emerging from tip — represents the ZK proof generation -->
+  <path d="M128 24 L130 6 L126 6 Z" fill="#10b981"/>
+  <circle cx="128" cy="10" r="3" fill="#10b981"/>
+
+  <!-- Proof ring around the hat — three arcs, counterclockwise, like a sigil -->
+  <circle cx="128" cy="128" r="48" stroke="#10b981" stroke-width="3" stroke-dasharray="22 14" fill="none" opacity="0.7"/>
+
+  <!-- Hidden-salary glyph: a masked coin (USDC) — half shown, half concealed -->
+  <circle cx="128" cy="200" r="18" fill="#1e2a4a" stroke="#f1f5f9" stroke-width="2.5"/>
+  <!-- mask diagonal -->
+  <path d="M110 200 A18 18 0 0 1 146 200 L128 200 Z" fill="#3b82f6"/>
+  <!-- dollar -->
+  <path d="M128 189 L128 211 M124 193 L132 193 A4 4 0 0 1 132 201 L124 201 A4 4 0 0 0 124 209 L132 209" stroke="#f1f5f9" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Wordmark -->
+  <text x="128" y="244" font-family="Inter, -apple-system, sans-serif" font-weight="800" font-size="22" fill="#f1f5f9" text-anchor="middle" letter-spacing="-0.5">PayMage</text>
+</svg>
