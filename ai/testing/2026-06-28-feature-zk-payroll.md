@@ -83,11 +83,27 @@ description: Test scenarios for ZK payroll — circuit, contract, browser, and E
 
 **Run**: `npm test`
 
+- [x] **T3.6**: Browser payroll input preparation preserves generated salts in the real proof request, maps app employee IDs to deterministic BN254 field elements, and derives `commitmentId` with the withdraw circuit domain. `npm test -- lib/zk/payrollInputs.test.ts` passes. *(Added 2026-07-14)*
+
+- [x] **T3.7**: Middleware CSP allowlists `NEXT_PUBLIC_ZK_ARTIFACTS_URL` origin in `connect-src` so large proving artifacts can be fetched by the real prover. `npm test -- __tests__/middleware.test.ts` passes. *(Added 2026-07-14)*
+
+- [x] **T3.8**: Soroban dApp transaction helper waits for RPC confirmation and rejects failed/non-confirmed transactions. `npm test -- lib/stellar/transactions.test.ts` passes. *(Added 2026-07-15)*
+
+- [x] **T3.9**: Server proof-provider boundary builds padded payroll circuit inputs, normalizes browser hex Merkle values to decimal Circom inputs, rejects malformed prover responses, and surfaces missing `PAYROLL_PROVER_URL`. `npm test -- app/api/zk/payroll/prove/route.test.ts lib/zk/payrollCircuitInput.test.ts lib/zk/serverProver.test.ts` passes. *(Added 2026-07-15)*
+
+- [x] **T3.10**: Native `payroll_prover_service` compile + proof smoke emits a 256-byte proof and 3 public inputs from the regenerated `payroll_10_10` artifacts. Passing evidence:
+  - `BUILD_TESTS=1 ONLY_KEY_CIRCUITS=payroll_10_10,payrollWithdraw_10 cargo build -p e2e-tests --bin payroll_prover_service` completed.
+  - Dashboard helper-generated input was piped into `cargo run -p e2e-tests --bin payroll_prover_service -- --once`.
+  - Output contained 256-byte `proofHex` and public inputs:
+    `[3047185273bc91e8f524602b45d7f1b4544166272254f58007de24cd664b9552, 00000000000000000000000000000000000000000000000000000000004c4b40, 0000000000000000000000000000000000000000000000000000000000000001]`.
+  *(Completed 2026-07-15)*
+
 - [x] **T3.0a**: Client pages can import public env config without server secrets. `__tests__/env.test.ts` covers `publicEnv` loading with no `SESSION_SECRET` / `ADMIN_PUBLIC_KEY`, while `getServerEnv()` still rejects missing server secrets.
 - [x] **T3.0b**: Dashboard demo proof generation is artifact-independent. `__tests__/zk.demoProof.test.ts` verifies `generateDemoPayrollProof()` succeeds with `NEXT_PUBLIC_ZK_ENGINE=real` and an unavailable artifact server.
 - [x] **T3.1**: `RealZkEngine.init()` loads PK/R1CS/circom WASM via IndexedDB cache + initializes the wasm-pack prover in a Web Worker (verified by `npm run build` emitting the worker chunk; runtime init awaits testnet artifact server). *(Stage 3, 2026-07-01)*
 - [x] **T3.2**: `RealZkEngine` throws (not silent mock) when artifacts missing — `buildPayrollCircuitInput` throws on empty `pathElements`, surfacing the Phase 4.4 gap explicitly. *(Stage 3)*
 - [ ] **T3.3**: `generatePayrollProof()` with 10 employees produces proof in < 10s — **practically achievable** (`payroll_10_10` proves in seconds with 9.6 MB PK; browser WASM test pending artifacts deployment).
+  - **2026-07-14 update**: still blocked in this checkout because the real payroll prover binding (`payroll_prover_bg.wasm`) and large artifact files are not present. The dashboard now fails loudly rather than silently producing mock proof data when `NEXT_PUBLIC_ZK_ENGINE=real`.
 - [ ] **T3.4**: `generatePayrollProof()` with 100 employees — not supported by `payroll_10_10` (max 10). Revisit with `payroll_20` for v2 server-side proving.
 - [x] **T3.5**: `toSorobanScValsFromRealProof` correctly slices the 256-byte proof into `scvMap{a,b,c}` and encodes public inputs as `scvU256` — 4 vitest tests pass (`zk.serialize.real.test.ts`). *(Stage 3)*
 
@@ -110,6 +126,8 @@ description: Test scenarios for ZK payroll — circuit, contract, browser, and E
 - [x] **T5.7**: Real payroll proof on Stellar testnet — `payroll_10_10` Groth16 proof generated locally and accepted by deployed payroll contract. Passing tx: https://stellar.expert/explorer/testnet/tx/a27afe6f0bd9ef54cb3dc81658d3965b8e7d8e9f7b8a21e7146941e0cec60993
 - [x] **T5.8**: Real withdraw proof on Stellar testnet — `payrollWithdraw_10` Groth16 proof generated locally, nullifier accepted once, escrowed token transferred to recipient. Passing tx: https://stellar.expert/explorer/testnet/tx/a511f27bc833e32e6ce252d5ac83b7695ca189207114a6698a5737de5ee68ddb
 
+Fresh rerun note (2026-07-15): `PAYROLL_CONTRACT=... cargo run -p e2e-tests --bin testnet_payroll_e2e` was started but produced no output for several minutes after compilation and was interrupted. No fresh tx hashes were produced in that session.
+
 Run:
 
 ```bash
@@ -128,7 +146,8 @@ Live deployment:
 - Setup txs: root https://stellar.expert/explorer/testnet/tx/cf6087930eef15348dcd8d6ce06f8385262ca9c190b3ea5a84b6ad7650ccc094, budget cap https://stellar.expert/explorer/testnet/tx/d99fc82c046109f2224b03cacbe45c2b3d0a167a11b48b6a7381f2e1453fece1
 
 ### Browser E2E
-- [ ] **T4.1**: Full payroll run UI — "review" → "proof generation" → "confirm" → "submit" → tx confirmed on Soroban testnet. Transaction hash non-null.
+- [x] **T4.1a**: Playwright drives the dashboard server-proof payroll path through login + wizard proof generation. `E2E_STELLAR_SECRET_KEY=$(stellar keys show payroll-admin) npm run test:e2e -- --project=chromium e2e/payroll-server-proof.spec.ts` passed locally on 2026-07-15. The test mocks Freighter, signs the real auth challenge, seeds 10 active employees, hits `/api/zk/payroll/prove`, verifies a 256-byte proof and 3 public inputs, and reaches the confirmation step.
+- [ ] **T4.1**: Full payroll run UI — "review" → "proof generation" → "confirm" → "submit" → tx confirmed on Soroban testnet. Transaction hash non-null. Server-proof Vercel preview is live at https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app, but manual Freighter submission has not yet been completed in this session. The preview is currently behind Vercel Deployment Protection; `/login`, `/api/health`, and `/api/auth/challenge` return `302` to Vercel SSO unless a share/bypass link or `VERCEL_AUTOMATION_BYPASS_SECRET` is used.
 - [ ] **T4.1b**: PayrollWizard fetches `get_employee_root()` from contract on Review step. Root shown when available.
 - [ ] **T4.1c**: PayrollWizard "Start Payroll Run" loads active employees from store (not MOCK_EMPLOYEES).
 - [ ] **T4.1d**: PayrollWizard "Submit" passes `employeeCount` as 4th arg to `run_payroll()`.

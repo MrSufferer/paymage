@@ -9,8 +9,8 @@
 
 use contract_types::{Groth16Error, Groth16Proof};
 use soroban_sdk::{
-    contract, contractclient, contracterror, contractevent, contractimpl, contracttype,
-    crypto::bn254::Bn254Fr, token::TokenClient, Address, Bytes, Env, U256, Vec,
+    Address, Bytes, Env, U256, Vec, contract, contractclient, contracterror, contractevent,
+    contractimpl, contracttype, crypto::bn254::Bn254Fr, token::TokenClient,
 };
 
 // ─── Storage TTL constants ──────────────────────────────────────────────────
@@ -210,7 +210,9 @@ impl Payroll {
     ) {
         env.storage().persistent().set(&DataKey::Admin, &admin);
         env.storage().persistent().set(&DataKey::Token, &token);
-        env.storage().persistent().set(&DataKey::Verifier, &verifier);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Verifier, &verifier);
         env.storage()
             .persistent()
             .set(&DataKey::EmployeeRoot, &employee_root);
@@ -229,7 +231,9 @@ impl Payroll {
     /// Set the employee Merkle root (employer/admin only)
     pub fn set_employee_root(env: Env, root: U256) -> Result<(), Error> {
         Self::require_admin(&env)?;
-        env.storage().persistent().set(&DataKey::EmployeeRoot, &root);
+        env.storage()
+            .persistent()
+            .set(&DataKey::EmployeeRoot, &root);
         env.storage()
             .persistent()
             .extend_ttl(&DataKey::EmployeeRoot, MIN_TTL, EXTEND_TO);
@@ -261,7 +265,9 @@ impl Payroll {
     /// Set the Groth16 verifier contract address (employer/admin only)
     pub fn set_verifier(env: Env, verifier: Address) -> Result<(), Error> {
         Self::require_admin(&env)?;
-        env.storage().persistent().set(&DataKey::Verifier, &verifier);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Verifier, &verifier);
         env.storage()
             .persistent()
             .extend_ttl(&DataKey::Verifier, MIN_TTL, EXTEND_TO);
@@ -284,9 +290,11 @@ impl Payroll {
         env.storage()
             .persistent()
             .set(&DataKey::Auditor(auditor.clone()), &record);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Auditor(auditor.clone()), MIN_TTL, EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Auditor(auditor.clone()),
+            MIN_TTL,
+            EXTEND_TO,
+        );
         AuditorGrantedEvent {
             auditor: auditor.clone(),
         }
@@ -322,9 +330,11 @@ impl Payroll {
         env.storage()
             .persistent()
             .set(&DataKey::Auditor(auditor.clone()), &record);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::Auditor(auditor.clone()), MIN_TTL, EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &DataKey::Auditor(auditor.clone()),
+            MIN_TTL,
+            EXTEND_TO,
+        );
         AuditorRevokedEvent {
             auditor: auditor.clone(),
         }
@@ -412,7 +422,9 @@ impl Payroll {
             .persistent()
             .get::<_, u64>(&DataKey::CurrentPeriod)
             .unwrap_or(0u64);
-        let new_period = current_period.checked_add(1).ok_or(Error::NonCanonicalInput)?;
+        let new_period = current_period
+            .checked_add(1)
+            .ok_or(Error::NonCanonicalInput)?;
 
         // Convert proof's period ID to u64 and verify it matches
         let proof_period_id = Self::fr_to_u64(&env, &payroll_period_id_fe)?;
@@ -432,9 +444,10 @@ impl Payroll {
             .set(&DataKey::Period(new_period), &period_record);
 
         // 7b. Map commitment root to period ID (used by withdraw())
-        env.storage()
-            .persistent()
-            .set(&DataKey::RootToPeriod(employee_root_u256.clone()), &new_period);
+        env.storage().persistent().set(
+            &DataKey::RootToPeriod(employee_root_u256.clone()),
+            &new_period,
+        );
 
         // 8. Store commitment records, check for duplicates
         let mut period_commitments: Vec<U256> = Vec::new(&env);
@@ -454,9 +467,10 @@ impl Payroll {
                 commitment_id: commitment_id_owned.clone(),
                 ipfs_cid: ipfs_cid_owned.clone(),
             };
-            env.storage()
-                .persistent()
-                .set(&DataKey::CommitmentRecord(commitment_id_owned.clone()), &record);
+            env.storage().persistent().set(
+                &DataKey::CommitmentRecord(commitment_id_owned.clone()),
+                &record,
+            );
             period_commitments.push_back(commitment_id_owned);
         }
         env.storage()
@@ -472,12 +486,16 @@ impl Payroll {
         env.storage()
             .persistent()
             .extend_ttl(&DataKey::Period(new_period), MIN_TTL, EXTEND_TO);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::RootToPeriod(employee_root_u256.clone()), MIN_TTL, EXTEND_TO);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::PeriodCommitments(new_period), MIN_TTL, EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &DataKey::RootToPeriod(employee_root_u256.clone()),
+            MIN_TTL,
+            EXTEND_TO,
+        );
+        env.storage().persistent().extend_ttl(
+            &DataKey::PeriodCommitments(new_period),
+            MIN_TTL,
+            EXTEND_TO,
+        );
         env.storage()
             .persistent()
             .extend_ttl(&DataKey::CurrentPeriod, MIN_TTL, EXTEND_TO);
@@ -613,9 +631,11 @@ impl Payroll {
         env.storage()
             .persistent()
             .set(&DataKey::WithdrawnNullifier(nullifier.clone()), &true);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::WithdrawnNullifier(nullifier.clone()), MIN_TTL, EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &DataKey::WithdrawnNullifier(nullifier.clone()),
+            MIN_TTL,
+            EXTEND_TO,
+        );
 
         // 7. Transfer USDC from contract escrow to caller
         let token = env
@@ -625,9 +645,7 @@ impl Payroll {
             .ok_or(Error::TokenNotSet)?;
         let contract_addr = env.current_contract_address();
 
-        let amount_u128 = salary_amount
-            .to_u128()
-            .ok_or(Error::NonCanonicalInput)?;
+        let amount_u128 = salary_amount.to_u128().ok_or(Error::NonCanonicalInput)?;
         if amount_u128 > i128::MAX.unsigned_abs() {
             return Err(Error::NonCanonicalInput);
         }
@@ -718,4 +736,3 @@ impl Payroll {
         u64::try_from(u128_val).map_err(|_| Error::NonCanonicalInput)
     }
 }
-

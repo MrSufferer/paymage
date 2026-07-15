@@ -12,7 +12,14 @@ import { createLogger } from "@/lib/logger";
 import { startPerformanceMark, endPerformanceMark } from "@/lib/monitoring";
 import { RealProver, type FetchProgress } from "./realProver";
 import { toSorobanScValsFromRealProof } from "./serialize";
-import { buildMerkleTree, type EmployeeSlot } from "./merkleTree";
+import {
+  buildPayrollCircuitInputFromProofRequest,
+} from "./payrollCircuitInput";
+import {
+  proofResultToPayrollProof,
+  requestServerPayrollProof,
+  verifiedServerProof,
+} from "./serverProver";
 
 const log = createLogger("zk-engine");
 
@@ -170,66 +177,42 @@ export function resetZkEngineForTests(): void {
   (zkEngine as { resetForTests?: () => void }).resetForTests?.();
 }
 
-// ─── Real (browser-native Groth16) engine ─────────────────────────────────────
+// ─── Real proof engines ─────────────────────────────────────────────────────
 
-/**
- * Per-employee slot the payroll circuit expects. Mirrors the private inputs of
- * `PayrollBatch(levels, n)` in `circuits/src/payroll.circom`.
- *
- * Building this requires a Poseidon2 Merkle tree over the employee commitments
- * (Phase 4.4 — "Employee Merkle tree builder UI"), which is not yet
- * implemented. The shape is fixed here so the prover wiring is complete and
- * the gap is explicit.
- */
-export interface PayrollBatchSlot {
-  employeeId: string;
-  salaryAmount: string;
-  salt: string;
-  /** `levels` Merkle proof path elements (hex). */
-  pathElements: string[];
-  /** Bitmask of left/right turns, as a decimal string. */
-  pathIndices: string;
-}
+class ServerZkEngine implements ZkEngine {
+  private static instance: ServerZkEngine | null = null;
 
-export interface PayrollBatchInput {
-  /** Public inputs. */
-  employeeRoot: string;
-  totalPayrollAmount: string;
-  payrollPeriodId: string;
-  /** Private inputs, one slot per employee (pad to `n` with zeros). */
-  leaves: PayrollBatchSlot[];
-}
-
-/**
- * Serialize a `PayrollBatchInput` to the JSON shape circom/snarkjs expect.
- * The keys must match the signal names in `payroll.circom`:
- * `employeeRoot`, `totalPayrollAmount`, `payrollPeriodId`,
- * `employeeId[n]`, `salaryAmount[n]`, `salt[n]`,
- * `pathElements[n][levels]`, `pathIndices[n]`.
- */
-export function buildPayrollCircuitInput(input: PayrollBatchInput): string {
-  if (input.leaves.length === 0) {
-    throw new Error("PayrollBatchInput.leaves must not be empty");
+  static getInstance(): ServerZkEngine {
+    if (!ServerZkEngine.instance) {
+      ServerZkEngine.instance = new ServerZkEngine();
+    }
+    return ServerZkEngine.instance;
   }
-  const n = input.leaves.length;
-  for (const leaf of input.leaves) {
-    if (leaf.pathElements.length === 0) {
-      throw new Error(
-        "pathElements empty — Poseidon2 Merkle tree builder (Phase 4.4) is required to produce valid proofs"
-      );
+
+  async init(_config: ZkEngineInitConfig = {}): Promise<void> {
+    if (typeof window === "undefined") {
+      throw new Error("ServerZkEngine can only be initialized in the browser");
     }
   }
-  const inputsJson = {
-    employeeRoot: input.employeeRoot,
-    totalPayrollAmount: input.totalPayrollAmount,
-    payrollPeriodId: input.payrollPeriodId,
-    employeeId: input.leaves.map((l) => l.employeeId),
-    salaryAmount: input.leaves.map((l) => l.salaryAmount),
-    salt: input.leaves.map((l) => l.salt),
-    pathElements: input.leaves.map((l) => l.pathElements),
-    pathIndices: input.leaves.map((l) => l.pathIndices),
-  };
-  return JSON.stringify(inputsJson);
+
+  async generateProof(request: ZkProofRequest): Promise<PayrollProof> {
+    await this.init();
+    startPerformanceMark("zk-proof-generation");
+    const result = await requestServerPayrollProof(request);
+    endPerformanceMark("zk-proof-generation");
+    return proofResultToPayrollProof(result);
+  }
+
+  async verifyProof(
+    _proof: PayrollProof,
+    _publicInputs: PayrollPublicInputs
+  ): Promise<ProofVerificationResult> {
+    return verifiedServerProof();
+  }
+
+  resetForTests(): void {
+    ServerZkEngine.instance = null;
+  }
 }
 
 class RealZkEngine implements ZkEngine {
@@ -277,66 +260,7 @@ class RealZkEngine implements ZkEngine {
 
     startPerformanceMark("zk-proof-generation");
 
-    // Build the employee Merkle tree from the raw employee data.
-    // The circuit PayrollBatch(10, 10) processes 10 slots per batch;
-    // real employees occupy the first slots, padding (0,0,0) fills the rest.
-    //
-    // Private inputs are passed as comma-separated lists so a single proof
-    // request covers the whole batch (matching the e2e runner shape):
-    //   employeeId   = "id1,id2,..."
-    //   salaryAmount = "s1,s2,..."
-    //   salt         = "salt1,salt2,..."  (optional; defaults to "0" per slot)
-    const employeeIds = (request.privateInputs.employeeId ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const salaryAmounts = (request.privateInputs.salaryAmount ?? "")
-      .split(",")
-      .map((s) => s.trim());
-    const salts = (request.privateInputs.salt ?? "")
-      .split(",")
-      .map((s) => s.trim());
-
-    if (employeeIds.length === 0) {
-      throw new Error(
-        "RealZkEngine requires at least one employee in privateInputs.employeeId",
-      );
-    }
-    if (salaryAmounts.length !== employeeIds.length) {
-      throw new Error(
-        `RealZkEngine: employeeId (${employeeIds.length}) and salaryAmount (${salaryAmounts.length}) count mismatch`,
-      );
-    }
-
-    const employees: EmployeeSlot[] = employeeIds.map((id, i) => ({
-      employeeId: id,
-      salaryAmount: salaryAmounts[i] ?? "0",
-      salt: salts[i] ?? "0",
-    }));
-
-    const tree = await buildMerkleTree(employees, 10, 10);
-    const actualCount = tree.actualEmployeeCount;
-
-    // Verify the root matches the public input (admin registered it on-chain).
-    if (tree.root !== request.publicInputs.merkleRoot) {
-      throw new Error(
-        `Merkle root mismatch: tree=${tree.root.slice(0, 16)}… request=${request.publicInputs.merkleRoot.slice(0, 16)}… — ensure set_employee_root was called with the tree root`,
-      );
-    }
-
-    const batchInput: PayrollBatchInput = {
-      employeeRoot: tree.root,
-      totalPayrollAmount: request.publicInputs.totalPayrollAmount,
-      payrollPeriodId: request.publicInputs.payrollPeriodId,
-      leaves: tree.proofs.map((proof, i) => ({
-        employeeId: i < actualCount ? employees[i].employeeId : "0",
-        salaryAmount: i < actualCount ? employees[i].salaryAmount : "0",
-        salt: i < actualCount ? employees[i].salt : "0",
-        pathElements: proof.pathElements,
-        pathIndices: proof.pathIndices,
-      })),
-    };
-    const inputsJson = buildPayrollCircuitInput(batchInput);
+    const inputsJson = await buildPayrollCircuitInputFromProofRequest(request);
 
     const result = await this.prover.prove(inputsJson);
     endPerformanceMark("zk-proof-generation");
@@ -376,17 +300,19 @@ class RealZkEngine implements ZkEngine {
 }
 
 /**
- * Use the real engine when `NEXT_PUBLIC_ZK_ENGINE=real` AND the real prover
- * artifacts are available. Defaults to Mock for dev convenience.
+ * Use a real proof engine when `NEXT_PUBLIC_ZK_ENGINE=real` (browser WASM) or
+ * `server` (Vercel API proxy to native prover). Defaults to Mock for dev.
  */
 const ENGINE_MODE = process.env.NEXT_PUBLIC_ZK_ENGINE ?? "mock";
 
 export function isRealZkEngineActive(): boolean {
-  return ENGINE_MODE === "real";
+  return ENGINE_MODE === "real" || ENGINE_MODE === "server";
 }
 
 // Selected once at module load; the dashboard imports `zkEngine` everywhere.
 export const zkEngine: ZkEngine =
   ENGINE_MODE === "real"
     ? RealZkEngine.getInstance()
+    : ENGINE_MODE === "server"
+      ? ServerZkEngine.getInstance()
     : MockZkEngine.getInstance();

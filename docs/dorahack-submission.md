@@ -14,6 +14,8 @@ PayMage
 
 Privacy-first payroll on Stellar Soroban — pay teams in USDC where individual
 salaries are hidden by zero-knowledge proofs and only the payroll total is public.
+The first step toward global payroll infrastructure with KYC, fiat on/off-ramp,
+and automation planned for the future.
 
 ## Project Description (long)
 
@@ -83,11 +85,9 @@ auditable only to authorized parties.
   review → proof → confirm → submit. Pages: dashboard, employees, treasury,
   payroll/run, compliance (view keys), history, setup wizard.
 
-## What's New / Original Contribution (vs. base repo)
+## What's New / Original Contribution
 
-The base `stellar-private-payments` repo implements privacy pools (deposit /
-transfer / withdraw with ASP membership). PayMage adds a **payroll-specific
-domain** on top:
+PayMage is a payroll-specific zero-knowledge payment system for Stellar:
 
 - New `PayrollBatch` and `PayrollWithdraw` Circom circuits (range-checked salaries,
   sum conservation in batch, nullifier-based withdrawal).
@@ -130,8 +130,7 @@ domain** on top:
   - USDC token (SAC): `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
   - Verification keys: `payroll_10_10` (batch) + `payrollWithdraw_10` (withdraw)
 - **Circuit params deployed:** `PayrollBatch(10, 10)` — tree depth 10, batch size 10
-- Dashboard repo: `github.com/paymage/zk-payroll-dashboard`
-- Base protocol repo: https://github.com/NethermindEth/stellar-private-payments
+- Dashboard repo: `github.com/MrSufferer/paymage`
 - Demo URL: `[add hosted dashboard URL]`
 - Demo video: `[add Loom/YouTube link]`
 
@@ -156,6 +155,10 @@ domain** on top:
 - Later: full amount privacy (range-proven hidden amounts instead of public
   `salaryAmount` on withdraw), multi-asset payroll, scheduled/recurring payroll,
   ASP-style compliance set integration.
+- Future (global payroll infrastructure): KYC/KYB onboarding (Sumsub), fiat
+  on/off-ramp via SEP-24/SEP-31 anchors, payroll automation via off-chain keeper,
+  passkey smart accounts, and an API layer for third-party HR/finance tools —
+  all designed to extend the ZK privacy core into a full production platform.
 
 ## Challenges We Ran Into
 
@@ -197,8 +200,7 @@ domain** on top:
 
 ## Useful Links
 
-- Base protocol (privacy pools on Stellar): https://github.com/NethermindEth/stellar-private-payments
-- Dashboard repo: https://github.com/paymage/zk-payroll-dashboard
+- Dashboard repo: https://github.com/MrSufferer/paymage
 - Stellar Soroban docs: https://soroban.stellar.org/docs
 - Circom: https://docs.circom.io
 - Poseidon2 (Horizen Labs): https://github.com/HorizenLabs/poseidon2

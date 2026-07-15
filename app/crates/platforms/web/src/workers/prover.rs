@@ -1,6 +1,6 @@
 use crate::protocol::{
-    PreparedProverTx, PreparedTxPublic, ProverWorkerRequest, ProverWorkerResponse,
-    PayrollProverRequest, PayrollProverResponse,
+    PayrollProverRequest, PayrollProverResponse, PreparedProverTx, PreparedTxPublic,
+    ProverWorkerRequest, ProverWorkerResponse,
 };
 use anyhow::{Context as _, Result};
 use futures::try_join;
@@ -28,9 +28,8 @@ const PROVING_KEY: &[u8] = include_bytes!(
 const DISCLOSURE_PROVING_KEY: &[u8] = include_bytes!(
     "../../../../../../deployments/testnet/circuit_keys/selectiveDisclosure_1_proving_key.bin"
 );
-const PAYROLL_PROVING_KEY: &[u8] = include_bytes!(
-    "../../../../../../deployments/testnet/circuit_keys/payroll_20_proving_key.bin"
-);
+const PAYROLL_PROVING_KEY: &[u8] =
+    include_bytes!("../../../../../../deployments/testnet/circuit_keys/payroll_20_proving_key.bin");
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -90,7 +89,14 @@ async fn load_circuit_artifacts() -> Result<(), JsError> {
     if WITNESS_CALC.with(|s| s.borrow().is_some()) && PROVER.with(|s| s.borrow().is_some()) {
         return Ok(());
     }
-    let (wasm_bytes, r1cs_bytes, disc_wasm_bytes, disc_r1cs_bytes, payroll_wasm_bytes, payroll_r1cs_bytes) = try_join!(
+    let (
+        wasm_bytes,
+        r1cs_bytes,
+        disc_wasm_bytes,
+        disc_r1cs_bytes,
+        payroll_wasm_bytes,
+        payroll_r1cs_bytes,
+    ) = try_join!(
         async {
             let wasm_bytes: Vec<u8> = fetch_circuit_file("circuits/policy_tx_2_2.wasm").await?;
             log::debug!(
@@ -215,10 +221,8 @@ async fn load_circuit_artifacts() -> Result<(), JsError> {
     let disc_prover =
         Prover::new(DISCLOSURE_PROVING_KEY, &disc_r1cs_bytes).expect("FAILED Disclosure Prover");
 
-    let payroll_witness_calc =
-        WitnessCalculator::new(&payroll_wasm_bytes, &payroll_r1cs_bytes).map_err(|e| {
-            JsError::new(&format!("failed to init payroll witness calculator: {e:#}"))
-        })?;
+    let payroll_witness_calc = WitnessCalculator::new(&payroll_wasm_bytes, &payroll_r1cs_bytes)
+        .map_err(|e| JsError::new(&format!("failed to init payroll witness calculator: {e:#}")))?;
     let payroll_prover =
         Prover::new(PAYROLL_PROVING_KEY, &payroll_r1cs_bytes).expect("FAILED Payroll Prover");
 
@@ -405,10 +409,8 @@ pub(crate) async fn router(req: ProverWorkerRequest) -> Result<ProverWorkerRespo
             };
 
             let artifacts = prover::flows::payroll_proof(params)?;
-            let circuit_inputs_json =
-                serde_json::to_string(&artifacts.circuit_inputs).map_err(|e| {
-                    anyhow::anyhow!("failed to serialize payroll circuit inputs: {e}")
-                })?;
+            let circuit_inputs_json = serde_json::to_string(&artifacts.circuit_inputs)
+                .map_err(|e| anyhow::anyhow!("failed to serialize payroll circuit inputs: {e}"))?;
 
             log::debug!("[{WORKER_NAME}] compute payroll witness");
             let witness_bytes = PAYROLL_WITNESS_CALC.with(|cell| {
@@ -443,10 +445,7 @@ pub(crate) async fn router(req: ProverWorkerRequest) -> Result<ProverWorkerRespo
                     ));
                 }
 
-                Ok::<_, anyhow::Error>((
-                    proof_uncompressed,
-                    artifacts.public_inputs,
-                ))
+                Ok::<_, anyhow::Error>((proof_uncompressed, artifacts.public_inputs))
             })?;
 
             ProverWorkerResponse::PayrollPrepared(crate::protocol::PayrollProverResponse {

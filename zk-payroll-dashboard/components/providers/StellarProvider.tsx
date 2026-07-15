@@ -22,6 +22,7 @@ import { useWalletStore, NETWORK_PASSPHRASES, StellarNetwork } from '@/stores/wa
 import { WalletErrorOverlay } from './WalletErrorOverlay';
 import { createLogger } from '@/lib/logger';
 import { startPerformanceMark, endPerformanceMark } from '@/lib/monitoring';
+import { submitAndConfirmSorobanTransaction } from '@/lib/stellar/transactions';
 
 // ─── Network Configuration ────────────────────────────────────────────────────
 
@@ -339,14 +340,15 @@ export const StellarProvider: React.FC<{ children: React.ReactNode }> = ({
                 const signedXdr = await signTx(preparedTx.toXDR());
                 if (!signedXdr) return null;
 
-                const submitResult = await server.sendTransaction(
+                const { hash } = await submitAndConfirmSorobanTransaction(
+                    server,
                     StellarSdk.TransactionBuilder.fromXDR(
                         signedXdr,
                         NETWORK_PASSPHRASES[network]
-                    )
+                    ),
                 );
 
-                return submitResult.hash;
+                return hash;
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : 'Contract invocation failed.';
                 setError(message);

@@ -1,0 +1,21 @@
+{
+  "name": "poseidon-wasm",
+  "type": "module",
+  "description": "Browser WASM Poseidon2 primitives (BN254) for the payroll Merkle tree — wraps the `zkhash` crate",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NethermindEth/stellar-private-transactions"
+  },
+  "files": [
+    "poseidon_wasm_bg.wasm",
+    "poseidon_wasm.js",
+    "poseidon_wasm.d.ts"
+  ],
+  "main": "poseidon_wasm.js",
+  "types": "poseidon_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

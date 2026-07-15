@@ -81,7 +81,7 @@ uint = { version = "0.10", default-features = false }
 wasm-bindgen = { version = "0.2", default-features = false, features = ["serde-serialize"] }
 wasm-bindgen-test = { version = "0.3", default-features = false, features = ["std"] }
 wasm-log = { version = "0.3", default-features = false }
-# see also https://github.com/NethermindEth/stellar-private-payments/issues/192
+# Pinned for ark-circom compatibility.
 wasmer = { git = "https://github.com/wasmerio/wasmer", rev = "763e9f2800644f51ce27f6f5c1752776da16ddd1", shallow = true, default-features = false }
 
 [workspace.lints.rust]

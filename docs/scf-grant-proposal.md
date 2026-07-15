@@ -486,8 +486,8 @@ within the Stellar ecosystem.
 
 ### 4. GitHub & Docs Transparency
 
-- Maintain public-facing repo (NethermindEth/stellar-private-payments) and
-  dashboard with roadmaps, feedback logs, and technical documentation.
+- Maintain the public PayMage repo and dashboard with roadmaps, feedback logs,
+  and technical documentation.
 - Publish integration docs for SEP-24 anchors, Sumsub KYC, and the keeper
   automation service.
 
@@ -498,10 +498,8 @@ co-create.
 
 ## Traction Evidence
 
-PayMage is built on top of Nethermind's privacy-pools reference implementation
-for Stellar (`NethermindEth/stellar-private-payments`). The ZK privacy layer is
-**already built and proven on Stellar testnet** — this grant funds the
-production-readiness layer (KYC, on-ramp, automation) on top.
+PayMage's ZK payroll layer is already built and proven on Stellar testnet. This
+grant funds the production-readiness layer (KYC, on-ramp, automation) on top.
 
 ### On-Chain Transaction Proof (Testnet, July 3, 2026)
 
@@ -680,8 +678,7 @@ feedback from real test users.*
 - `[Member 2 name]` — `[role]` — `[GitHub handle]` / `[X handle]`
 - `[Member 3 name]` — `[role]` — `[GitHub handle]` / `[X handle]`
 
-Built on top of Nethermind's Stellar privacy-pools reference implementation
-(`NethermindEth/stellar-private-payments`).
+Built as PayMage's Stellar-native ZK payroll implementation.
 
 ---
 
@@ -700,7 +697,7 @@ Built on top of Nethermind's Stellar privacy-pools reference implementation
 
 ## Useful Links
 
-- Base protocol (privacy pools on Stellar): https://github.com/NethermindEth/stellar-private-payments
+- PayMage repo: https://github.com/MrSufferer/paymage
 - Testnet payroll contract: `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF`
 - Payroll proof tx (testnet): https://stellar.expert/explorer/testnet/tx/a27afe6f0bd9ef54cb3dc81658d3965b8e7d8e9f7b8a21e7146941e0cec60993
 - Withdraw proof tx (testnet): https://stellar.expert/explorer/testnet/tx/a511f27bc833e32e6ce252d5ac83b7695ca189207114a6698a5737de5ee68ddb

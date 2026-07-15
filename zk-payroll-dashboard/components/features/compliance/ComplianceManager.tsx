@@ -20,6 +20,7 @@ import { Server } from "@stellar/stellar-sdk/rpc";
 import { useViewKeyStore } from "@/stores/viewKeys";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
 import { MOCK_VIEW_KEYS } from "@/lib/api/mockData";
+import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
 import type { ViewKey } from "@/types";
 
@@ -98,10 +99,7 @@ function ComplianceManager() {
         signedTxXdr,
         NETWORK_PASSPHRASES[network],
       );
-      const result = await server.sendTransaction(signedTx);
-      if (result.status === "ERROR") {
-        throw new Error(`Transaction failed: ${result.errorResult}`);
-      }
+      const result = await submitAndConfirmSorobanTransaction(server, signedTx);
       return result.hash;
     },
     [publicKey, isConnected, network],

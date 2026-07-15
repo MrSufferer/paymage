@@ -41,4 +41,4 @@ clean:
 
 .PHONY: doc
 doc:
-	mdbook build docs/ && cargo doc --no-deps --workspace && cp -r target/doc docs/book/api && open docs/book/index.html
+	cargo doc --no-deps --workspace --open

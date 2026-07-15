@@ -29,7 +29,6 @@ export function setupFreighterMock(options: FreighterMockOptions = {}) {
   });
 
   afterEach(() => {
-    // @ts-expect-error -- cleaning up the mock
     delete window.freighter;
   });
 }

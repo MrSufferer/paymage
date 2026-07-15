@@ -6,12 +6,21 @@ import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 
 function buildCsp(): string {
   const isDev = process.env.NODE_ENV === 'development';
+  const zkArtifactOrigin = (() => {
+    const value = process.env.NEXT_PUBLIC_ZK_ARTIFACTS_URL ?? (isDev ? 'http://localhost:8001' : undefined);
+    if (!value) return null;
+    try {
+      return new URL(value).origin;
+    } catch {
+      return null;
+    }
+  })();
 
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'script-src': isDev
       ? ["'self'", "'unsafe-eval'", "'unsafe-inline'"]
-      : ["'self'"],
+      : ["'self'", "'unsafe-inline'"],
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', 'blob:'],
     'font-src': ["'self'"],
@@ -40,6 +49,10 @@ function buildCsp(): string {
 
   if (typeof WebAssembly !== 'undefined') {
     directives['script-src'].push("'wasm-unsafe-eval'");
+  }
+
+  if (zkArtifactOrigin) {
+    directives['connect-src'].push(zkArtifactOrigin);
   }
 
   if (!isDev) {

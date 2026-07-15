@@ -65,7 +65,12 @@ pub(crate) fn poseidon2_hash3_internal(
 /// Poseidon2 hash with 3 inputs and domain separation byte.
 ///
 /// Matches the Circom Poseidon2(3) template with domainSeparation signal.
-pub fn poseidon2_hash3(input0: &[u8], input1: &[u8], input2: &[u8], domain_separation: u8) -> Result<Vec<u8>> {
+pub fn poseidon2_hash3(
+    input0: &[u8],
+    input1: &[u8],
+    input2: &[u8],
+    domain_separation: u8,
+) -> Result<Vec<u8>> {
     let a = bytes_to_scalar(input0)?;
     let b = bytes_to_scalar(input1)?;
     let c = bytes_to_scalar(input2)?;

@@ -89,7 +89,11 @@ fn inner_generate(
     let public_inputs_bytes = prover.extract_public_inputs(&witness_bytes)?;
     let public_inputs_hex = public_inputs_bytes
         .chunks_exact(32)
-        .map(|chunk| hex::encode(chunk))
+        .map(|chunk| {
+            let mut be = chunk.to_vec();
+            be.reverse();
+            hex::encode(be)
+        })
         .collect();
 
     Ok(ProofResult {

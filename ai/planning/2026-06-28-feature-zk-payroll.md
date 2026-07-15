@@ -11,9 +11,9 @@ description: Privacy-first ZK payroll on Stellar Soroban — implementation plan
 - [x] **M1**: PayrollCircuit compiles + trusted setup artifacts exist
 - [x] **M2**: PayrollContract deployable + verified on Soroban (local/Quickstart Docker)
 - [x] **M2b**: Testnet deployment — verifier + payroll live on testnet. Payroll_10_10 VK. Init called.
-- [x] **M3**: ZK engine replaces MockZkEngine — keys regenerated. Circuit dead code cleaned. Browser proof gen pending local artifact server.
-- [x] **M4**: Frontend fully wired to contract — IPFS encryption + upload integrated. Dashboard builds 17/17. Manual E2E test pending.
-- [ ] **M5 (full payroll + withdraw)**: Demo — 10 employees, $500k total, auditor decrypts one salary, employee withdraws via ZK proof. Needs browser manual test with Freighter.
+- [x] **M3**: ZK engine supports mock/real/server modes — server-proof mode can generate real payroll proofs through the native prover service; browser-native prover remains pending artifact/WASM recovery.
+- [x] **M4**: Frontend wired to testnet contracts — confirmation polling, employee-root flow, compliance calls, server-proof API, and Vercel preview are in place. Manual Freighter E2E test pending.
+- [ ] **M5 (full payroll + withdraw)**: Demo — 10 employees, $500k total, auditor decrypts one salary, employee withdraws via ZK proof. Needs browser manual test with Freighter on the server-proof Vercel preview.
 
 ---
 
@@ -608,6 +608,44 @@ operational support).
 **Status**: NOT STARTED
 
 ---
+
+### Phase 12: Payroll Testnet Production-Readiness Gate (NEW — added 2026-07-15)
+
+This phase blocks ZK KYC work until the existing payroll app works end-to-end on testnet from the deployed dashboard. The native testnet proof path is proven, and the Vercel preview can now delegate proof generation to a native prover service, but the browser wallet flow still needs a fresh manual transaction hash.
+
+#### Task 12.1 — Confirm server-proof Vercel preview with Freighter
+**Files**: `zk-payroll-dashboard/lib/zk/engine.ts`, `zk-payroll-dashboard/app/api/zk/payroll/prove/route.ts`, `zk-payroll-dashboard/components/features/payroll/PayrollWizard.tsx`
+**Outcome**: Employer connects Freighter on the Vercel preview, posts/uses the employee root, generates a real payroll proof through server mode, submits `run_payroll()`, and receives a confirmed Stellar testnet tx hash.
+**Validation**: Browser run on `https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app` produces a successful `run_payroll` transaction visible on Stellar Expert testnet.
+**Depends on**: Task 12.2 if current deployed verifier keys do not match regenerated local proving artifacts.
+**Test scenarios**: T4.1, T4.2, T4.5b, M5 payroll leg
+**Status**: IN PROGRESS — Vercel preview deployed with `NEXT_PUBLIC_ZK_ENGINE=server`; manual Freighter submission not yet completed.
+
+#### Task 12.2 — Verify deployed verifier keys against regenerated artifacts
+**Files**: `testdata/payroll_10_10_vk.json`, `testdata/payrollWithdraw_10_vk.json`, `deployments/`, `deployments/scripts/deploy-payroll.sh`
+**Outcome**: Confirm the currently deployed payroll and withdraw verifier contracts were built from the same VKs as the regenerated local proving keys. If not, redeploy verifier/payroll contracts and update Vercel env.
+**Validation**: A fresh native testnet run or verifier redeploy evidence confirms the active testnet contracts accept proofs from the current `testdata/` keys.
+**Depends on**: Current regenerated artifacts from `BUILD_TESTS=1 REGEN_KEYS=1 ONLY_KEY_CIRCUITS=payroll_10_10,payrollWithdraw_10 cargo build -p circuits`.
+**Test scenarios**: T5.7, T5.8
+**Status**: NOT STARTED — local proof smoke passed; deployed verifier freshness still needs explicit confirmation.
+
+#### Task 12.3 — Replace temporary proof tunnel with durable preview infrastructure
+**Files**: `e2e-tests/src/bin/payroll_prover_service.rs`, Vercel environment variables, hosting runbook
+**Outcome**: `PAYROLL_PROVER_URL` points to a durable HTTPS service instead of a local Serveo tunnel backed by detached `screen` sessions.
+**Validation**: Vercel preview can generate proofs after local laptop sleep/restart; `/api/zk/payroll/prove` succeeds without local tunnel dependency.
+**Depends on**: Task 12.1 confirms server-proof mode is otherwise correct.
+**Test scenarios**: T3.9, T3.10, T4.1
+**Status**: NOT STARTED — current preview depends on temporary Serveo/screen runtime.
+
+#### Task 12.4 — Decide browser-native prover vs server-proof production path
+**Files**: `app/crates/payroll-prover/`, `zk-payroll-dashboard/lib/zk/realProver.*`, `zk-payroll-dashboard/lib/zk/serverProver.ts`
+**Outcome**: Choose one production proof path for the grant demo: durable server-proof service now, or finish the browser-native WASM prover/artifact hosting path.
+**Validation**: Selected path has a reproducible build/deploy command, documented env vars, and green proof generation from a deployed dashboard.
+**Depends on**: Task 12.1, Task 12.3
+**Test scenarios**: T3.3, T4.1
+**Status**: NOT STARTED — recommendation is durable server-proof first, browser-native prover later.
+
+---
                                         │
 2.1 (contract scaffold) ──→ 2.2 (admin) ──→ 2.3 (auditor) ──→ 2.4 (run_payroll)
      │                                  │            │
@@ -764,6 +802,10 @@ operational support).
 | `deploy-payroll.sh` hardcodes wrong VK | **Resolved** | Medium | Task 6.8 closed — now uses `payroll_10_10_vk.json`. |
 | Ark-circom WASM fails to load in browser | Low | High | Fallback error state (not mock). |
 | Circuit key regen needed after R1CS change | **Active** | High | Run `REGEN_KEYS=1 BUILD_TESTS=1 cargo build -p circuits` then redeploy verifier. |
+| Deployed verifier may be stale after local key regeneration | **Active** | High | Compare active verifier contracts with current `testdata/*_vk.json`; redeploy verifier/payroll if mismatch before browser E2E. |
+| Vercel proof generation depends on temporary Serveo/screen tunnel | **Active** | High | Move `payroll_prover_service` to durable HTTPS hosting or finish browser-native prover before calling the app production-ready. |
+| Manual Freighter browser E2E still pending | **Active** | High | Run the final Vercel preview manually, capture confirmed testnet tx hash, then update testing/deployment docs. |
+| Accidental production-target Vercel deployment exists | **Active** | Medium | Ignore for judging or clean up after preview validation; use the documented preview URL for testing. |
 | IPFS upload fails during payroll run | Low | High | Retry 3x. Store blobs in contract as last resort. |
 | Groth16 trusted setup is single-contributor dev ceremony | Low | Critical (mainnet) | Real multi-party ceremony required before mainnet. |
 | **Grant-feature risks (added 2026-07-06)** | | | |
@@ -960,102 +1002,41 @@ operational support).
 
 ---
 
-## Current Focus & Next Steps (2026-07-03 — implementation complete)
+## Current Focus & Next Steps (2026-07-15 — payroll testnet/Vercel gate)
 
-**Progress**: All implementation tasks complete across all phases (1–7, 6b). Full payroll + withdraw pipeline implemented: circuits, contract with 20 tests, browser WASM prover, dashboard UI (18 pages), IPFS encryption, testnet deployment with both verifiers.
+**Progress**: The payroll app now has a pragmatic deployed proof path: `NEXT_PUBLIC_ZK_ENGINE=server` builds the browser-shaped circuit input in the dashboard, calls `/api/zk/payroll/prove`, and delegates real proof generation to `payroll_prover_service`. Local regenerated artifacts produced a valid 256-byte payroll proof smoke, `npm test` passed 72 tests, `npm run typecheck` passed, and a Vercel preview is ready at `https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app`.
 
-### All completed tasks (by phase)
+**Current production-readiness gap**: The preview still depends on a temporary Serveo tunnel backed by local detached `screen` sessions, and the final browser/Freighter testnet transaction has not been captured. This means payroll is demo-ready for controlled validation, but not production-ready or grant-judge-ready until Phase 12 is closed.
 
-**Phase 1** (Circuit + Trusted Setup):
-- [x] Task 1.1: PayrollBatch circuit — `payroll.circom`, `payroll_20.circom`, `payroll_10_10.circom`
-- [x] Task 1.2: Groth16 keys generated for payroll_20 + payroll_10_10
-- [x] Task 1.3: Artifacts placed in `public/zk/`
+### July 15 Status Checklist
 
-**Phase 2** (PayrollContract):
-- [x] Tasks 2.1–2.3: Scaffold, admin methods, auditor management
-- [x] Task 2.4: `run_payroll()` with USDC transfer
-- [x] Task 2.5: `circom-groth16-verifier` client integration
-- [x] Task 2.6: Testnet deployment
-- [x] Task 2.6b: Deployments.json reconciled
-- [x] Task 2.7: Proof-bound `run_payroll` signature (BLOCKING — F1/F2)
-- [x] Task 2.8: 8 new contract tests
+- [x] Server-proof dashboard mode implemented (`NEXT_PUBLIC_ZK_ENGINE=server`)
+- [x] Payroll proof API route validates public statement before proxying to the prover
+- [x] Native `payroll_prover_service` added for HTTP/stdio proof generation
+- [x] Browser-to-Circom payroll input normalization added
+- [x] `payroll_10_10` and `payrollWithdraw_10` local artifacts regenerated
+- [x] Native proof smoke produced proof/public inputs from dashboard-shaped input
+- [x] Vercel preview deployed with current testnet contract IDs and server-proof mode
+- [ ] Manual browser E2E on Vercel preview with Freighter
+- [ ] Confirm active deployed verifier VKs match regenerated proving artifacts, or redeploy
+- [ ] Replace Serveo/screen proof runtime with durable hosting, or finish browser-native prover
 
-**Phase 3** (ZK Engine):
-- [x] Tasks 3.1–3.4: WASM prover, proof gen, local verify, circuit shrink (10 MB PK)
+### Active Testnet/Vercel Targets
 
-**Phase 4** (Frontend):
-- [x] Task 4.1: PayrollWizard contract wiring
-- [x] Task 4.2: ComplianceManager contract wiring
-- [x] Task 4.3: IPFS encrypted blob upload (Pinata)
-- [x] Task 4.4: Employee Merkle tree builder (poseidon-wasm)
-- [x] Task 4.5: SetEmployeeRoot UI
-
-**Phase 5** (Testing):
-- [x] Tasks 5.1–5.3: Circuit, contract, browser tests
-- [x] Task 5.5: Native E2E — Merkle tree + witness
-- [x] Task 5.6: Native E2E — full proof + contract
-
-**Phase 6/6b** (Cleanup):
-- [x] Tasks 6.1–6.10: Defaults, artifacts, dead code, deploy script, lint, test warnings
-
-**Phase 7** (Withdrawal):
-- [x] Task 7.1: PayrollWithdraw circuit (`payrollWithdraw.circom` + `payrollWithdraw_10.circom`)
-- [x] Task 7.2: Groth16 keys auto-generated (PK 1.1 MB)
-- [x] Task 7.3: Contract `withdraw()` + 5 tests (T2.13–T2.17)
-- [x] Task 7.4: Withdraw verifier deployed to testnet
-- [x] Task 7.5: Browser prover wiring (generic `generate_proof`, configurable worker)
-- [x] Task 7.6: Employee withdrawal UI (`/withdraw` route)
-
-### Test counts
-
-| Layer | Count |
+| Target | Value |
 |---|---|
-| Contract unit tests | **20/20 pass, 0 warnings** |
-| Dashboard vitest | **55/55 pass, 11/11 files** |
-| Native E2E | **2/2 pass** (merkle witness + real proof) |
-| Typescript | **clean** |
-| Dashboard build | **18/18 pages** |
+| Vercel preview | `https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app` |
+| Payroll contract | `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF` |
+| Payroll verifier | `CCSE6A4JH4KDWE63XMJ62LZBJTKJY4AEY3Q6FIACTKXZMNAX2NA7HRI6` |
+| Withdraw verifier | `CCARTGQLYGE2TCFFGPNC2B4IXUZJV4Y5QZWNHX4CXEREDLVIB3XYY5DH` |
+| Token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
+| Proof mode | `NEXT_PUBLIC_ZK_ENGINE=server` |
+| Temporary prover URL | `https://2b500c89e5433b25-27-79-42-120.serveousercontent.com` |
 
-### Testnet Deployments (2026-07-03)
+### Next Actions
 
-| Contract | ID | VK |
-|---|---|---|
-| Payroll | `CBN3XSKSAN3TFA7HHLQY3MRVU2WXY5MRY4AKIUDTMGQ2LAVKJUXGAPXU` | Latest WASM |
-| Payroll Verifier | `CCH6JHAQLWARRXBYYSZMJ74IW2PBUGSYDCHAB455QZUE4LYVXDTFNCCV` | `payroll_10_10` |
-| Withdraw Verifier | `CCJQ4SZNN5DV7NN4KSFC4M6MFNBGPOXC6FBV6BHSJPUWIFGW4M6OQ73C` | `payrollWithdraw_10` |
-| Token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | USDC (testnet) |
+1. **Close Task 12.1**: run the Vercel preview manually with Freighter, generate a real payroll proof through server mode, submit `run_payroll()`, and record the confirmed Stellar testnet tx hash.
+2. **Close Task 12.2**: verify the active verifier contracts match current regenerated VKs; if there is any mismatch, redeploy verifier/payroll contracts and redeploy Vercel with the new IDs.
+3. **Close Task 12.3**: replace the Serveo/screen proof backend with durable HTTPS hosting so Vercel proof generation survives laptop sleep/restarts.
 
-Config: `budget_cap=100000000000` (10,000 USDC), `employee_root=0`
-
-### Remaining (ZK layer)
-
-1. **Manual E2E demo (M5)**: Run full payroll + withdraw from dashboard through testnet with Freighter — requires browser + wallet. Manual-only.
-
-### Grant-Funded Features (Phases 8-10) — NOT STARTED
-
-**Phase 8** (Tranche 1 — KYC & Compliance Onboarding):
-- [ ] Tasks 8.1–8.7: Sumsub KYC, off-chain allowlist, WebAuthn verifier + smart-account-kit, passkey onboarding, auditor portal, privacy validation, integration tests
-- **Estimated completion: 2026-09-06 | Budget: $30,000**
-
-**Phase 9** (Tranche 2 — Fiat On-Ramp & Funding):
-- [ ] Tasks 9.1–9.6: SEP-24 anchor integration, dashboard funding UI, reconciliation, employee VND cash-out, funding enhancements, integration tests + QA
-- **Estimated completion: 2026-11-06 | Budget: $32,000**
-
-**Phase 10** (Tranche 3 — Payroll Automation & Production Hardening):
-- [ ] Tasks 10.1–10.7: set_authorized_signer contract change, keeper service, pre-generated encrypted proofs, schedule UI, production hardening, Vietnam pilot, integration tests
-- **Estimated completion: 2026-12-06 | Budget: $28,000**
-
-**Phase 11** (Production Backend Architecture — Cross-Tranche):
-- [ ] Tasks 11.1–11.5: Event store + CQRS projections, persistent subscribers, double-entry bookkeeping ledger, admin operator role + dashboard, account management aggregate
-- **Cross-tranche**: Tranche 1 (11.1–11.2, ~20h), Tranche 2 (11.3, ~10h), Tranche 3 (11.4–11.5, ~18h)
-
-### Next actions
-
-1. **Manual browser E2E test (ZK layer)** — run payroll from Dashboard, verify IPFS blob encryption, run withdrawal from `/withdraw` page
-2. **Start Tranche 1 implementation** — Task 8.1 (Sumsub KYC) + Task 8.3 (WebAuthn verifier contract) + Task 11.1 (event store) can start in parallel (no dependencies between them)
-3. **Team should study event sourcing + CQRS + double-entry accounting** — new architecture patterns for this codebase; review before Tranche 1 implementation
-4. **Vietnam pilot outreach** — start identifying 2-3 pilot employers + 10-15 contractors in Tranche 1 (needed for Tranche 3 pilot)
-5. **SEP-24 VND corridor validation** — confirm at least 1 anchor serves VND cash-out before Tranche 2 starts
-6. **Multi-party ceremony** — required before mainnet (single-contributor dev setup for now)
-
-**Coordination needed**: Sumsub account setup (Tranche 1), SEP-24 anchor partner agreement (Tranche 2), Vietnam pilot employer/contractor recruitment (Tranche 1 start, Tranche 3 execution), event sourcing/CQRS knowledge ramp-up (Tranche 1 start).
+**Planning decision**: Do not start ZK KYC implementation yet. ZK KYC should begin only after the payroll browser testnet path is confirmed from Vercel, because KYC will reuse the same dashboard transaction, proof infrastructure, verifier freshness, and deployment discipline.

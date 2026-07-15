@@ -79,7 +79,10 @@ fn main() {
         "cargo:rerun-if-changed={}",
         disclosure_proving_key_path.display()
     );
-    println!("cargo:rerun-if-changed={}", payroll_proving_key_path.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        payroll_proving_key_path.display()
+    );
     println!("cargo:rerun-if-changed={}", wasm_path.display());
     println!("cargo:rerun-if-changed={}", r1cs_path.display());
     println!("cargo:rerun-if-changed={}", disclosure_wasm_path.display());

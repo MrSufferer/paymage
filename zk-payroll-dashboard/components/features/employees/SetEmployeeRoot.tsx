@@ -9,11 +9,9 @@ import { useEmployeeStore } from "@/stores/employees";
 import { useCompanyStore } from "@/stores/company";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
+import { buildPayrollSlots } from "@/lib/zk/payrollInputs";
+import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
-
-function toHex32(n: number): string {
-  return BigInt(n).toString(16).padStart(64, "0");
-}
 
 function SetEmployeeRoot() {
   const { employees } = useEmployeeStore();
@@ -77,11 +75,7 @@ function SetEmployeeRoot() {
     setIsBuilding(true);
     setError(null);
     try {
-      const slots = activeEmployees.map((e) => ({
-        employeeId: e.id,
-        salaryAmount: e.salary.toString(),
-        salt: toHex32(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
-      }));
+      const slots = await buildPayrollSlots(activeEmployees);
       const tree = await buildMerkleTree(slots, 10, 10);
       setTreeRoot(tree.root);
       toast.success("Merkle tree built", {
@@ -138,10 +132,7 @@ function SetEmployeeRoot() {
       if (!signedTxXdr) throw new Error("Signing cancelled");
 
       const signedTx = StellarSdk.TransactionBuilder.fromXDR(signedTxXdr, NETWORK_PASSPHRASES[network]);
-      const result = await server.sendTransaction(signedTx);
-      if (result.status === "ERROR") {
-        throw new Error(`Transaction failed: ${result.errorResult}`);
-      }
+      const result = await submitAndConfirmSorobanTransaction(server, signedTx);
       setLastPostedRoot(treeRoot);
       setContractRoot(treeRoot);
       toast.success("Employee root posted", {

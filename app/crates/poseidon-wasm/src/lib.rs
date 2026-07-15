@@ -8,6 +8,8 @@
 //! Two primitives are exposed, matching `circuits/src/`:
 //! - `poseidon2_commitment`: the salary commitment leaf
 //!   `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]` (ds = 0x01).
+//! - `poseidon2_commitment_id`: the withdrawal commitment identifier
+//!   `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]` (ds = 0x02).
 //! - `poseidon2_compress`: the Merkle internal-node hash `PoseidonCompress()`
 //!   = `(Permutation(2)([l, r]) + [l, r])[0]`.
 //!
@@ -47,8 +49,12 @@ fn parse_fr(hex_in: &str) -> Result<Fr, JsValue> {
     }
     let mut bytes = vec![0u8; HEX_LEN.saturating_sub(clean.len())];
     for b in clean.as_bytes().chunks(2) {
-        let s = std::str::from_utf8(b).map_err(|e| JsValue::from(JsError::new(&format!("bad hex: {e}"))))?;
-        bytes.push(u8::from_str_radix(s, 16).map_err(|e| JsValue::from(JsError::new(&format!("bad hex: {e}"))))?);
+        let s = std::str::from_utf8(b)
+            .map_err(|e| JsValue::from(JsError::new(&format!("bad hex: {e}"))))?;
+        bytes.push(
+            u8::from_str_radix(s, 16)
+                .map_err(|e| JsValue::from(JsError::new(&format!("bad hex: {e}"))))?,
+        );
     }
     Ok(Fr::from_be_bytes_mod_order(&bytes))
 }
@@ -62,13 +68,21 @@ fn fr_to_hex(f: &Fr) -> String {
     hex::encode(out)
 }
 
-fn perm(params: &Arc<zkhash::poseidon2::poseidon2_params::Poseidon2Params<Fr>>, inputs: &[Fr]) -> Vec<Fr> {
+fn perm(
+    params: &Arc<zkhash::poseidon2::poseidon2_params::Poseidon2Params<Fr>>,
+    inputs: &[Fr],
+) -> Vec<Fr> {
     Poseidon2::new(params).permutation(inputs)
 }
 
 /// Salary commitment leaf (core): `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]`.
 fn commitment_fr(emp: Fr, sal: Fr, salt: Fr, ds: Fr) -> Fr {
     perm(&POSEIDON2_BN256_PARAMS_4, &[emp, sal, salt, ds])[0]
+}
+
+/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]`.
+fn commitment_id_fr(commitment: Fr, ds: Fr) -> Fr {
+    perm(&POSEIDON2_BN256_PARAMS_2, &[commitment, ds])[0]
 }
 
 /// Merkle internal-node hash (core): `PoseidonCompress()` =
@@ -91,6 +105,14 @@ pub fn poseidon2_commitment(
     let salt = parse_fr(salt_hex)?;
     let ds = parse_fr(ds_hex)?;
     Ok(fr_to_hex(&commitment_fr(emp, sal, salt, ds)))
+}
+
+/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]`.
+#[wasm_bindgen]
+pub fn poseidon2_commitment_id(commitment_hex: &str, ds_hex: &str) -> Result<String, JsValue> {
+    let commitment = parse_fr(commitment_hex)?;
+    let ds = parse_fr(ds_hex)?;
+    Ok(fr_to_hex(&commitment_id_fr(commitment, ds)))
 }
 
 /// Merkle internal-node hash: `PoseidonCompress()` =
@@ -128,8 +150,20 @@ mod tests {
         let sal = Fr::from(500_000u64);
         let salt = Fr::from(0u64);
         let ds = Fr::from(1u64);
-        let direct = Poseidon2::new(&POSEIDON2_BN256_PARAMS_4).permutation(&[emp, sal, salt, ds])[0];
+        let direct =
+            Poseidon2::new(&POSEIDON2_BN256_PARAMS_4).permutation(&[emp, sal, salt, ds])[0];
         let got = commitment_fr(emp, sal, salt, ds);
+        assert_eq!(got, direct);
+    }
+
+    /// `poseidon2_commitment_id` matches the withdraw circuit's `Poseidon2(1)`
+    /// commitment-id derivation.
+    #[test]
+    fn commitment_id_matches_direct_perm() {
+        let commitment = Fr::from(42u64);
+        let ds = Fr::from(2u64);
+        let direct = Poseidon2::new(&POSEIDON2_BN256_PARAMS_2).permutation(&[commitment, ds])[0];
+        let got = commitment_id_fr(commitment, ds);
         assert_eq!(got, direct);
     }
 

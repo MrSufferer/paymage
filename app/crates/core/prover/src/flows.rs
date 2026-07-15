@@ -958,10 +958,7 @@ pub fn payroll_proof(params: PayrollParams) -> Result<PayrollArtifacts> {
         ));
     }
 
-    let levels = path_elements
-        .first()
-        .map(|pe| pe.len())
-        .unwrap_or(0);
+    let levels = path_elements.first().map(|pe| pe.len()).unwrap_or(0);
 
     // Validate all path_elements have the same length = levels
     for (i, pe) in path_elements.iter().enumerate() {

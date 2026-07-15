@@ -20,14 +20,16 @@ import { useStellar } from "@/components/providers/StellarProvider";
 import { zkEngine, isRealZkEngineActive } from "@/lib/zk/engine";
 import { toSorobanScVals, toSorobanScValsFromRealProof } from "@/lib/zk/serialize";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
+import {
+  buildPayrollSlots,
+  buildZkProofPrivateInputs,
+  computeCommitmentId,
+  type PayrollSlot,
+} from "@/lib/zk/payrollInputs";
 import { encryptSalaryBlob, deriveViewKey, serializeEncryptedPayload } from "@/lib/zk/encryption";
 import { uploadToIpfs } from "@/lib/ipfs";
 import { env } from "@/lib/env";
-import type { PayrollWizardStep, GeneratedPayrollProof, PayrollSecrets } from "@/types";
-
-function toHex32(n: number | string): string {
-  return BigInt(n).toString(16).padStart(64, "0");
-}
+import type { PayrollWizardStep, GeneratedPayrollProof } from "@/types";
 
 const STEPS: { key: PayrollWizardStep; label: string }[] = [
   { key: "review", label: "Review" },
@@ -38,6 +40,13 @@ const STEPS: { key: PayrollWizardStep; label: string }[] = [
 
 function stepIndex(step: PayrollWizardStep): number {
   return STEPS.findIndex((s) => s.key === step);
+}
+
+function normalizePeriod(value: unknown): number {
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value);
+  return 0;
 }
 
 function PayrollWizard() {
@@ -69,10 +78,13 @@ function PayrollWizard() {
   const [contractRoot, setContractRoot] = useState<bigint | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState<number>(0);
   const [isLoadingRoot, setIsLoadingRoot] = useState(false);
-  const [salarySlots, setSalarySlots] = useState<Array<{ employeeId: string; salaryAmount: string; salt: string }>>([]);
+  const [salarySlots, setSalarySlots] = useState<PayrollSlot[]>([]);
   const [ipfsCids, setIpfsCids] = useState<Array<{ commitmentId: string; ipfsCid: string }>>([]);
 
-  const allEmployees = storedEmployees.length > 0 ? storedEmployees : [];
+  const allEmployees = useMemo(
+    () => (storedEmployees.length > 0 ? storedEmployees : []),
+    [storedEmployees],
+  );
 
   const selectedEmployees = useMemo(
     () => allEmployees.filter((e) => employeeIds.includes(e.id)),
@@ -111,7 +123,7 @@ function PayrollWizard() {
         simulateContractCall("get_current_period"),
       ]);
       if (root !== null) setContractRoot(root);
-      if (period !== null) setCurrentPeriod(period);
+      if (period !== null) setCurrentPeriod(normalizePeriod(period));
     } catch {
       setContractRoot(null);
     } finally {
@@ -140,16 +152,12 @@ function PayrollWizard() {
     setProofError(null);
 
     try {
-      const nextPeriod = currentPeriod + 1;
+      const nextPeriod = normalizePeriod(currentPeriod) + 1;
       const periodId = nextPeriod.toString();
       const isReal = isRealZkEngineActive();
 
       // Build the employee Merkle tree from selected employees.
-      const slots = selectedEmployees.map((e) => ({
-        employeeId: e.id,
-        salaryAmount: e.salary.toString(),
-        salt: toHex32(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
-      }));
+      const slots = await buildPayrollSlots(selectedEmployees);
       setSalarySlots(slots);
       setIpfsCids([]);
       const tree = await buildMerkleTree(slots, 10, 10);
@@ -174,11 +182,7 @@ function PayrollWizard() {
       if (isReal) {
         // Real ZK engine path — generates actual Groth16 proof.
         const proof = await zkEngine.generateProof({
-          privateInputs: {
-            employeeId: selectedEmployees.map((e) => e.id).join(","),
-            salaryAmount: selectedEmployees.map((e) => e.salary.toString()).join(","),
-            salt: "0",
-          },
+          privateInputs: buildZkProofPrivateInputs(slots),
           publicInputs: {
             merkleRoot,
             totalPayrollAmount: totalAmount.toString(),
@@ -257,12 +261,12 @@ function PayrollWizard() {
         const viewKey = await deriveViewKey("payroll-view-key-v1");
 
         for (const slot of salarySlots) {
-          const encrypted = await encryptSalaryBlob(slot.employeeId, slot.salaryAmount, slot.salt, viewKey);
+          const encrypted = await encryptSalaryBlob(slot.sourceEmployeeId, slot.salaryAmount, slot.salt, viewKey);
           const blobBytes = serializeEncryptedPayload(encrypted);
 
           const { computeCommitment: cc } = await import("@/lib/zk/merkleTree");
           const commitment = await cc(slot.employeeId, slot.salaryAmount, slot.salt);
-          const commitmentId = commitment.replace(/^0x/, "").padStart(64, "0");
+          const commitmentId = await computeCommitmentId(commitment);
 
           try {
             const result = await uploadToIpfs(blobBytes);

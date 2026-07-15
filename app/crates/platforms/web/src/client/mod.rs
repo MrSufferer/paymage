@@ -1,8 +1,8 @@
 use crate::{
     protocol::{
-        AdminASPRequest, DisclosureInputsRequest, DisclosureProverRequest, PreparedProverTx,
-        PreparedTxPublic, ProverWorkerRequest, ProverWorkerResponse, StorageWorkerRequest,
-        StorageWorkerResponse, PayrollProverRequest, PayrollProverResponse,
+        AdminASPRequest, DisclosureInputsRequest, DisclosureProverRequest, PayrollProverRequest,
+        PayrollProverResponse, PreparedProverTx, PreparedTxPublic, ProverWorkerRequest,
+        ProverWorkerResponse, StorageWorkerRequest, StorageWorkerResponse,
     },
     workers::{prover::ProverWorker, storage::StorageWorker},
 };

@@ -40,7 +40,18 @@ async function loadWasm(): Promise<PoseidonWasm> {
   if (!wasmReady) {
     wasmReady = (async () => {
       const mod = await import("./wasm/poseidon/poseidon_wasm.js");
-      await mod.default();
+      if (typeof window === "undefined") {
+        const importer = new Function("specifier", "return import(specifier)") as (
+          specifier: string,
+        ) => Promise<typeof import("node:fs/promises")>;
+        const { readFile } = await importer("node:fs/promises");
+        const wasmBytes = await readFile(
+          new URL("./wasm/poseidon/poseidon_wasm_bg.wasm", import.meta.url),
+        );
+        await mod.default(wasmBytes);
+      } else {
+        await mod.default();
+      }
       return mod as unknown as PoseidonWasm;
     })();
   }

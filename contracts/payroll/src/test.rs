@@ -1,10 +1,9 @@
 use crate::{Payroll, PayrollClient};
 use contract_types::{Groth16Error, Groth16Proof};
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, U256,
-    contract, contractimpl, crypto::bn254::{Bn254Fr, Bn254G1Affine as G1Affine, Bn254G2Affine as G2Affine},
+    Address, Bytes, BytesN, Env, IntoVal, U256, Vec, contract, contractimpl,
+    crypto::bn254::{Bn254Fr, Bn254G1Affine as G1Affine, Bn254G2Affine as G2Affine},
     testutils::{Address as _, MockAuth, MockAuthContract, MockAuthInvoke},
-    IntoVal, Vec,
 };
 
 // ─── Mock verifiers ─────────────────────────────────────────────────────────
@@ -71,7 +70,13 @@ fn register_with_mock_verifier(env: &Env) -> (Address, Address, Address, Payroll
 
     let contract_addr = env.register(
         Payroll,
-        (admin.clone(), token, verifier.clone(), employee_root, budget_cap),
+        (
+            admin.clone(),
+            token,
+            verifier.clone(),
+            employee_root,
+            budget_cap,
+        ),
     );
     let client = PayrollClient::new(env, &contract_addr);
 
@@ -95,7 +100,12 @@ fn mk_mock_groth16_proof(env: &Env) -> Groth16Proof {
 }
 
 /// Build default public inputs for run_payroll: [employeeRoot, totalPayrollAmount, payrollPeriodId].
-fn default_public_inputs(env: &Env, employee_root: u32, total_amount: u32, period_id: u32) -> Vec<Bn254Fr> {
+fn default_public_inputs(
+    env: &Env,
+    employee_root: u32,
+    total_amount: u32,
+    period_id: u32,
+) -> Vec<Bn254Fr> {
     let mut inputs: Vec<Bn254Fr> = Vec::new(env);
     inputs.push_back(fr_from_u256(env, &U256::from_u32(env, employee_root)));
     inputs.push_back(fr_from_u256(env, &U256::from_u32(env, total_amount)));
@@ -112,8 +122,12 @@ pub struct MockToken;
 #[contractimpl]
 impl MockToken {
     pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
-    pub fn balance_of(_env: Env, _id: Address) -> i128 { 0 }
-    pub fn total_supply(_env: Env) -> i128 { 0 }
+    pub fn balance_of(_env: Env, _id: Address) -> i128 {
+        0
+    }
+    pub fn total_supply(_env: Env) -> i128 {
+        0
+    }
 }
 
 #[test]
@@ -132,15 +146,17 @@ fn test_set_employee_root_emits_event() {
     let (admin, contract_addr, client) = register_payroll(&env);
 
     let new_root = U256::from_u32(&env, 99);
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "set_employee_root",
-            args: (new_root.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).set_employee_root(&new_root);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "set_employee_root",
+                args: (new_root.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .set_employee_root(&new_root);
 
     assert_eq!(client.get_employee_root(), new_root);
 }
@@ -151,15 +167,17 @@ fn test_set_budget_cap_emits_event() {
     let (admin, contract_addr, client) = register_payroll(&env);
 
     let new_cap = U256::from_u32(&env, 5_000_000);
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "set_budget_cap",
-            args: (new_cap.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).set_budget_cap(&new_cap);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "set_budget_cap",
+                args: (new_cap.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .set_budget_cap(&new_cap);
 
     assert_eq!(client.get_budget_cap(), new_cap);
 }
@@ -173,15 +191,17 @@ fn test_auditor_grant_and_revoke() {
     let view_key = Bytes::from_array(&env, &[0xAB; 32]);
 
     // Grant auditor access (admin call)
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "set_view_key_for_auditor",
-            args: (&auditor, &view_key).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).set_view_key_for_auditor(&auditor, &view_key);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "set_view_key_for_auditor",
+                args: (&auditor, &view_key).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .set_view_key_for_auditor(&auditor, &view_key);
 
     // Verify auditor is active
     assert!(client.is_auditor(&auditor));
@@ -191,15 +211,17 @@ fn test_auditor_grant_and_revoke() {
     assert_eq!(retrieved, view_key);
 
     // Revoke auditor (admin call)
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "revoke_auditor",
-            args: (auditor.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).revoke_auditor(&auditor);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "revoke_auditor",
+                args: (auditor.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .revoke_auditor(&auditor);
     assert!(!client.is_auditor(&auditor));
 
     // Revoked auditor cannot get view key
@@ -226,25 +248,29 @@ fn test_get_view_key_returns_error_for_revoked_auditor() {
     let view_key = Bytes::from_array(&env, &[0xCD; 32]);
 
     // Grant and revoke
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "set_view_key_for_auditor",
-            args: (&auditor, &view_key).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).set_view_key_for_auditor(&auditor, &view_key);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "set_view_key_for_auditor",
+                args: (&auditor, &view_key).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .set_view_key_for_auditor(&auditor, &view_key);
 
-    client.mock_auths(&[MockAuth {
-        address: &admin,
-        invoke: &MockAuthInvoke {
-            contract: &contract_addr,
-            fn_name: "revoke_auditor",
-            args: (auditor.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]).revoke_auditor(&auditor);
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &contract_addr,
+                fn_name: "revoke_auditor",
+                args: (auditor.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .revoke_auditor(&auditor);
 
     let result = client.try_get_view_key(&auditor);
     assert!(result.is_err());
@@ -275,7 +301,9 @@ fn test_run_payroll_success_with_mock_verifier() {
 
     let period = client.get_current_period();
     assert_eq!(period, 1);
-    let (root, amount, count) = client.get_payroll_period(&1u64).expect("period 1 should exist");
+    let (root, amount, count) = client
+        .get_payroll_period(&1u64)
+        .expect("period 1 should exist");
     assert_eq!(root, U256::from_u32(&env, 42));
     assert_eq!(amount, U256::from_u32(&env, total_amount));
     assert_eq!(count, 1);
@@ -347,10 +375,10 @@ fn test_run_payroll_rejects_non_canonical_input() {
 
     let proof = mk_mock_groth16_proof(&env);
     // Use a U256 that is > BN254 modulus (all 0xFF bytes)
-    let non_canonical = fr_from_u256(&env, &U256::from_be_bytes(
+    let non_canonical = fr_from_u256(
         &env,
-        &Bytes::from_array(&env, &[0xFFu8; 32]),
-    ));
+        &U256::from_be_bytes(&env, &Bytes::from_array(&env, &[0xFFu8; 32])),
+    );
     let mut public_inputs: Vec<Bn254Fr> = Vec::new(&env);
     public_inputs.push_back(non_canonical); // employeeRoot
     public_inputs.push_back(fr_from_u256(&env, &U256::from_u32(&env, 500_000)));
@@ -393,10 +421,15 @@ fn test_run_payroll_amount_bound_to_proof() {
 
     client.run_payroll(&proof, &public_inputs, &ipfs_cids);
 
-    let (_root, amount, _count) = client.get_payroll_period(&1u64).expect("period 1 should exist");
+    let (_root, amount, _count) = client
+        .get_payroll_period(&1u64)
+        .expect("period 1 should exist");
     // The stored amount must equal public_inputs[1], NOT a caller-supplied separate arg
-    assert_eq!(amount, U256::from_u32(&env, total_amount),
-        "stored total_amount must equal public_inputs[1] (proof-bound)");
+    assert_eq!(
+        amount,
+        U256::from_u32(&env, total_amount),
+        "stored total_amount must equal public_inputs[1] (proof-bound)"
+    );
 }
 
 /// T2.12: Duplicate commitmentId → DuplicateCommitment.
@@ -438,7 +471,11 @@ fn test_run_payroll_rejects_duplicate_commitment_across_periods() {
         v.push_back((commitment_id.clone(), ipfs_cid.clone()));
         v
     };
-    client.run_payroll(&proof, &default_public_inputs(&env, 42, 500_000, 1), &ipfs_cids1);
+    client.run_payroll(
+        &proof,
+        &default_public_inputs(&env, 42, 500_000, 1),
+        &ipfs_cids1,
+    );
 
     // Second payroll with same commitment_id — must fail
     let ipfs_cids2: Vec<(U256, Bytes)> = {
@@ -458,9 +495,7 @@ fn test_run_payroll_rejects_duplicate_commitment_across_periods() {
 
 /// Helper: register payroll with a withdraw mock verifier and run an initial payroll.
 /// Returns (env, client, withdrawal_addr) where the payroll has period 1 active.
-fn register_and_run_payroll_with_withdraw_verifier(
-    env: &Env,
-) -> (Address, PayrollClient<'_>) {
+fn register_and_run_payroll_with_withdraw_verifier(env: &Env) -> (Address, PayrollClient<'_>) {
     env.mock_all_auths();
     let admin = Address::generate(env);
     let token = env.register(MockToken, ());
@@ -471,7 +506,13 @@ fn register_and_run_payroll_with_withdraw_verifier(
 
     let contract_addr = env.register(
         Payroll,
-        (admin.clone(), token, payroll_verifier, employee_root, budget_cap),
+        (
+            admin.clone(),
+            token,
+            payroll_verifier,
+            employee_root,
+            budget_cap,
+        ),
     );
     let client = PayrollClient::new(env, &contract_addr);
 

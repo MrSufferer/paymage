@@ -21,7 +21,7 @@ serde_json = { workspace = true, default-features = false, features = ["alloc", 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # external
 ark-circom = { workspace = true, features = ["parallel"] }
-# see https://github.com/NethermindEth/stellar-private-payments/issues/192
+# Pinned for ark-circom compatibility.
 wasmer = { workspace = true, features = ["cranelift"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

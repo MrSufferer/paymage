@@ -41,6 +41,13 @@ describe('middleware', () => {
     expect(csp).toContain('report-uri /api/csp-report');
   });
 
+  it('allows Next.js inline runtime scripts in production CSP', async () => {
+    const response = await runMiddleware('production');
+    const csp = response.headers.get('Content-Security-Policy')!;
+
+    expect(csp).toContain("'unsafe-inline'");
+  });
+
   it('includes wasm-unsafe-eval for ZK proof support', async () => {
     const response = await runMiddleware();
     const csp = response.headers.get('Content-Security-Policy')!;
@@ -56,5 +63,14 @@ describe('middleware', () => {
     expect(csp).toContain('https://soroban-testnet.stellar.org');
     expect(csp).toContain('https://horizon.stellar.org');
     expect(csp).toContain('https://soroban-rpc.stellar.org');
+  });
+
+  it('allowlists configured ZK artifact origin in connect-src', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ZK_ARTIFACTS_URL', 'http://localhost:8001/artifacts');
+
+    const response = await runMiddleware('development');
+    const csp = response.headers.get('Content-Security-Policy')!;
+
+    expect(csp).toContain('http://localhost:8001');
   });
 });

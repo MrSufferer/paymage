@@ -74,8 +74,7 @@ async function ensureInit(circuit: "payroll" | "withdraw" = "payroll") {
   if (ready) return;
   await loadArtifacts(circuit);
 
-  const wasmUrl = new URL("./wasm/payroll_prover_bg.wasm", import.meta.url);
-  await init(wasmUrl);
+  await init();
 
   ready = true;
 }
