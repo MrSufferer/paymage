@@ -1,166 +1,138 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, CheckCircle, ArrowDownLeft, Plus } from "lucide-react";
-import { MOCK_TREASURY_BALANCE, MOCK_TRANSACTIONS, MOCK_COMPANIES } from "@/lib/api/mockData";
+import { AlertTriangle, CheckCircle2, ExternalLink, Landmark, RefreshCw } from "lucide-react";
+import { PAYMAGE_PROTOCOL_TRANSACTIONS } from "@/lib/protocol/paymage";
+import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
+
+function format(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "Unavailable";
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed.toLocaleString() : String(value);
+}
 
 function TreasuryView() {
-  const [toastVisible, setToastVisible] = useState(false);
-
-  const { balance, projectedPayroll, lastFunded } = MOCK_TREASURY_BALANCE;
-  const company = MOCK_COMPANIES[0];
-  const isLowBalance = projectedPayroll > balance;
-  const remaining = balance - projectedPayroll;
-
-  const fundingHistory = MOCK_TRANSACTIONS.filter((t) => t.status === "verified");
-
-  const handleAddFunds = () => {
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  };
+  const { data, error, isLoading, refresh } = useProtocolStatus();
+  const projectedPayroll = data?.payroll.nextPayrollAmount ?? 500_000;
+  const balance = data?.payroll.treasuryBalance ?? null;
+  const budgetCap = data?.payroll.budgetCap ?? null;
+  const hasRoot = data?.payroll.rootMatchesDemo;
 
   return (
-    <section aria-labelledby="treasury-heading" className="space-y-6">
-      <h2 id="treasury-heading" className="text-lg font-semibold text-gray-900">
-        Treasury
-      </h2>
-
-      {isLowBalance && (
-        <div
-          role="alert"
-          className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3"
+    <section aria-labelledby="treasury-heading" className="space-y-5">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase text-teal-700">Treasury</p>
+          <h1 id="treasury-heading" className="mt-1 text-3xl font-semibold text-slate-950">
+            PAYME payroll treasury
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-600">
+            Live SAC balance, budget cap, and payroll policy inputs from the deployed Stellar
+            testnet protocol.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={isLoading}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
-          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="text-sm font-medium text-red-800">Insufficient funds</p>
-            <p className="text-sm text-red-700 mt-0.5">
-              Projected payroll (${projectedPayroll.toLocaleString()}) exceeds available
-              balance (${balance.toLocaleString()}). Add funds before executing payroll.
+          <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {error}
+        </div>
+      )}
+
+      {!hasRoot && !isLoading && (
+        <div role="alert" className="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+          <p className="text-sm text-amber-800">
+            The employee root does not match the PayMage demo workforce. Sync the root before
+            submitting payroll.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Metric label="Treasury balance" value={`${format(balance)} PAYME`} detail="Admin SAC balance" />
+        <Metric label="Next private payroll" value={`${projectedPayroll.toLocaleString()} units`} detail="10 employees in proof batch" />
+        <Metric label="Budget cap" value={`${format(budgetCap)} PAYME`} detail="Contract policy limit" />
+      </div>
+
+      <article className="rounded-md border border-slate-200 bg-white p-5">
+        <div className="flex items-start gap-3">
+          <Landmark className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-slate-950">Treasury address</h2>
+            <p className="mt-2 break-all font-mono text-xs text-slate-700">
+              {data?.payroll.admin ?? "Loading"}
             </p>
           </div>
         </div>
-      )}
+      </article>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <article className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-600">Available Balance</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            ${balance.toLocaleString()}
-          </p>
-          <span className="text-xs text-gray-500">
-            Last funded {new Date(lastFunded).toLocaleDateString()}
-          </span>
-        </article>
-
-        <article className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-600">Projected Payroll</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
-            ${projectedPayroll.toLocaleString()}
-          </p>
-          <span className="text-xs text-gray-500">Next scheduled run</span>
-        </article>
-
-        <article className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-600">After Payroll</h3>
-          <p
-            className={`text-3xl font-bold mt-2 ${
-              isLowBalance ? "text-red-600" : "text-green-700"
-            }`}
-          >
-            {isLowBalance ? "-" : ""}${Math.abs(remaining).toLocaleString()}
-          </p>
-          <div className="flex items-center gap-1 mt-1">
-            {isLowBalance ? (
-              <AlertTriangle className="w-3.5 h-3.5 text-red-500" aria-hidden="true" />
-            ) : (
-              <CheckCircle className="w-3.5 h-3.5 text-green-500" aria-hidden="true" />
-            )}
-            <span className={`text-xs ${isLowBalance ? "text-red-600" : "text-green-600"}`}>
-              {isLowBalance ? "Deficit after payroll" : "Surplus after payroll"}
-            </span>
-          </div>
-        </article>
-      </div>
-
-      {company && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-1">Treasury address</h3>
-          <p className="text-xs font-mono text-gray-500 break-all">{company.treasury}</p>
+      <article className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="text-sm font-semibold text-slate-950">Protocol events</h2>
         </div>
-      )}
-
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h3 className="text-base font-medium text-gray-900">Funding history</h3>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={handleAddFunds}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-              Add Funds
-            </button>
-            {toastVisible && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="absolute right-0 top-full mt-2 w-56 px-3 py-2 rounded-md bg-gray-800 text-white text-xs shadow-lg"
-              >
-                On-chain funding coming soon.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {fundingHistory.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-500">
-            No funding activity yet.
-          </div>
-        ) : (
-          <table className="w-full text-left">
-            <caption className="sr-only">Treasury funding history</caption>
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-600 uppercase">
-                  Type
-                </th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-600 uppercase">
-                  Amount
-                </th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-600 uppercase">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-600 uppercase">
-                  Date
-                </th>
+        <table className="w-full text-left">
+          <caption className="sr-only">PayMage treasury and payroll protocol events</caption>
+          <thead className="bg-slate-50">
+            <tr>
+              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Event</th>
+              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Amount</th>
+              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Status</th>
+              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Tx</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {PAYMAGE_PROTOCOL_TRANSACTIONS.map((tx) => (
+              <tr key={tx.id}>
+                <td className="px-5 py-4 text-sm text-slate-900">Employee root sync</td>
+                <td className="px-5 py-4 text-sm font-medium text-slate-900">
+                  {tx.totalAmount.toLocaleString()} units
+                </td>
+                <td className="px-5 py-4">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-800">
+                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                    {tx.status}
+                  </span>
+                </td>
+                <td className="px-5 py-4">
+                  {tx.txHash ? (
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${tx.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-mono text-xs text-teal-700 hover:text-teal-900 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                    >
+                      {tx.txHash.slice(0, 10)}...
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <span className="text-sm text-slate-500">Pending</span>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {fundingHistory.map((tx) => (
-                <tr key={tx.id}>
-                  <td className="px-6 py-4 flex items-center gap-2">
-                    <ArrowDownLeft className="w-4 h-4 text-green-600" aria-hidden="true" />
-                    <span className="text-sm text-gray-900">Payroll disbursement</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    ${tx.totalAmount.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                      {tx.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(tx.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            ))}
+          </tbody>
+        </table>
+      </article>
     </section>
+  );
+}
+
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article className="rounded-md border border-slate-200 bg-white p-5">
+      <h2 className="text-sm font-medium text-slate-500">{label}</h2>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+    </article>
   );
 }
 

@@ -19,7 +19,6 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
 import { useViewKeyStore } from "@/stores/viewKeys";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
-import { MOCK_VIEW_KEYS } from "@/lib/api/mockData";
 import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
 import type { ViewKey } from "@/types";
@@ -38,10 +37,8 @@ function generateKeyId(): string {
 }
 
 function ComplianceManager() {
-  const { viewKeys, addViewKey, revokeViewKey, setViewKeys } =
-    useViewKeyStore();
+  const { viewKeys, addViewKey, revokeViewKey } = useViewKeyStore();
   const { publicKey, isConnected, network } = useWalletStore();
-  const [initialized, setInitialized] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [isContractCall, setIsContractCall] = useState(false);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
@@ -52,11 +49,6 @@ function ComplianceManager() {
     scope: "read-only" as "read-only" | "full-audit",
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  if (!initialized && viewKeys.length === 0) {
-    setViewKeys(MOCK_VIEW_KEYS);
-    setInitialized(true);
-  }
 
   const callContract = useCallback(
     async (method: string, args: StellarSdk.xdr.ScVal[]) => {
@@ -203,11 +195,11 @@ function ComplianceManager() {
             id="compliance-heading"
             className="text-lg font-semibold text-gray-900"
           >
-            Auditor Access Management
+            Selective disclosure
           </h2>
           <p className="text-sm text-gray-600 mt-1">
-            Manage view-key access for external auditors. Selective disclosure
-            ensures auditors see only what they are authorized to review.
+            Manage auditor access for encrypted salary disclosures and prepare
+            the ZK KYC layer for Vietnam-first institutions.
           </p>
         </div>
         <button
@@ -216,7 +208,7 @@ function ComplianceManager() {
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Generate Key
+          Grant Auditor
         </button>
       </div>
 
@@ -228,11 +220,9 @@ function ComplianceManager() {
               Privacy Notice
             </h3>
             <p className="text-sm text-amber-700 mt-1">
-              View keys allow auditors to decrypt specific payroll data without
-              exposing full employee records. Read-only keys permit viewing
-              transaction summaries. Full-audit keys additionally reveal
-              departmental breakdowns. Revoking a key immediately invalidates
-              access, but data already viewed cannot be retrieved.
+              PayMage stores public payroll commitments on Stellar while salary
+              details remain encrypted. Auditor view keys unlock only the
+              disclosure scope granted by the employer.
             </p>
           </div>
         </div>
@@ -367,6 +357,40 @@ function ComplianceManager() {
           </div>
         </div>
       )}
+
+      {activeKeys.length === 0 && inactiveKeys.length === 0 && (
+        <div className="rounded-md border border-slate-200 bg-white p-6">
+          <h3 className="text-sm font-semibold text-slate-950">No auditor keys granted</h3>
+          <p className="mt-2 text-sm text-slate-600">
+            This is the correct current testnet state. Grant an auditor key only when a
+            real Stellar auditor address is ready to receive encrypted disclosure access.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <article className="rounded-md border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-950">ZK KYC</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Upcoming attestations prove employee eligibility and institutional onboarding
+            without placing identity documents on-chain.
+          </p>
+        </article>
+        <article className="rounded-md border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-950">Vietnam compliance</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            First target corridor: Vietnam employer payroll review, local exports, and
+            auditor disclosure packets.
+          </p>
+        </article>
+        <article className="rounded-md border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-950">Global payroll layer</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Policy adapters, corridor metadata, and selective disclosure controls expand
+            the same protocol to additional jurisdictions.
+          </p>
+        </article>
+      </div>
 
       {inactiveKeys.length > 0 && (
         <div>

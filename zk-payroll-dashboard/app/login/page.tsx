@@ -78,13 +78,13 @@ export default function LoginPage() {
   const loading = isLoading || isCreatingSession;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-sm">
-        <h1 className="mb-2 text-center text-2xl font-bold text-gray-900">
-          ZK Payroll Dashboard
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md rounded-md border border-slate-200 bg-white p-8">
+        <h1 className="mb-2 text-center text-2xl font-semibold text-slate-950">
+          PayMage
         </h1>
-        <p className="mb-8 text-center text-sm text-gray-500">
-          Connect your Stellar wallet to continue
+        <p className="mb-8 text-center text-sm text-slate-600">
+          Connect Freighter to sign PayMage testnet payroll actions.
         </p>
 
         {error && (
@@ -96,7 +96,7 @@ export default function LoginPage() {
         <button
           onClick={handleConnect}
           disabled={loading}
-          className="w-full rounded-md bg-gray-900 px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-md bg-teal-700 px-4 py-3 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           {loading
             ? 'Connecting...'

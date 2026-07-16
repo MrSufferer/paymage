@@ -5,8 +5,8 @@ import { MonitoringProvider } from '@/components/providers/MonitoringProvider';
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "ZK Payroll Dashboard",
-  description: "A zero-knowledge payroll dashboard application.",
+  title: "PayMage",
+  description: "Private payroll infrastructure for Stellar testnet.",
 };
 
 export default function RootLayout({

@@ -1,126 +1,175 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { generateDemoPayrollProof } from "@/lib/zk";
+import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
 
-interface ProofUiState {
-	status: "idle" | "running" | "success" | "error";
-	message?: string;
+function formatNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "Unavailable";
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (Number.isFinite(numeric)) return numeric.toLocaleString();
+  return String(value);
+}
+
+function short(value: string | null | undefined) {
+  if (!value) return "Not configured";
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 10)}...${value.slice(-8)}`;
 }
 
 function PayrollSummary() {
-	const [proofState, setProofState] = useState<ProofUiState>({
-		status: "idle",
-	});
+  const { data, error, isLoading, refresh } = useProtocolStatus();
 
-	const proofToneClass = useMemo(() => {
-		if (proofState.status === "success") {
-			return "text-green-700";
-		}
+  const rootReady = data?.payroll.rootMatchesDemo;
 
-		if (proofState.status === "error") {
-			return "text-red-700";
-		}
+  return (
+    <section className="space-y-5" aria-labelledby="protocol-summary-heading">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase text-teal-700">Live protocol state</p>
+          <h2 id="protocol-summary-heading" className="mt-1 text-2xl font-semibold text-slate-950">
+            PayMage testnet console
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Proof generation, payroll policy, and disclosure controls are wired to the deployed
+            Stellar testnet contracts used by the current Vercel production build.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={isLoading}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
 
-		return "text-gray-600";
-	}, [proofState.status]);
+      {error && (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Could not load live testnet status: {error}
+        </div>
+      )}
 
-	const handleGenerateMockProof = async () => {
-		setProofState({
-			status: "running",
-			message: "Generating local payroll proof...",
-		});
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Payroll batch"
+          value={isLoading ? "Loading" : formatNumber(data?.payroll.nextPayrollAmount)}
+          detail={`${data?.payroll.activeEmployees ?? 10} employees in root`}
+        />
+        <MetricCard
+          label="Current period"
+          value={isLoading ? "Loading" : `#${data?.payroll.currentPeriod ?? "?"}`}
+          detail={`Ledger ${data?.ledger.sequence?.toLocaleString() ?? "syncing"}`}
+        />
+        <MetricCard
+          label="Treasury token"
+          value={isLoading ? "Loading" : `${formatNumber(data?.payroll.treasuryBalance)} PAYME`}
+          detail="SAC balance of admin treasury"
+        />
+        <MetricCard
+          label="Budget cap"
+          value={isLoading ? "Loading" : `${formatNumber(data?.payroll.budgetCap)} PAYME`}
+          detail="On-chain payroll policy"
+        />
+      </div>
 
-		try {
-			const result = await generateDemoPayrollProof({
-				merkleRoot: "0xmock_merkle_root",
-				totalPayrollAmount: "124500",
-				payrollPeriodId: "2026-02",
-				employeeId: "emp-001",
-				employeeSsn: "111-22-3333",
-				salaryAmount: "8500",
-				salt: "dashboard-demo-salt",
-			});
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <article className="rounded-md border border-slate-200 bg-white p-5">
+          <div className="flex items-start gap-3">
+            {rootReady ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            )}
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-slate-950">
+                {rootReady ? "Workforce root matches the demo payroll batch" : "Workforce root needs sync"}
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                The payroll proof is bound to the employee Merkle root stored in the payroll
+                contract. This prevents a valid proof from being replayed against a different
+                workforce.
+              </p>
+              <dl className="mt-4 grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
+                <div>
+                  <dt className="font-medium text-slate-500">Contract root</dt>
+                  <dd className="mt-1 break-all font-mono text-slate-900">
+                    {short(data?.payroll.employeeRootHex)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-slate-500">Expected demo root</dt>
+                  <dd className="mt-1 break-all font-mono text-slate-900">
+                    {short(data?.payroll.expectedEmployeeRoot)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </article>
 
-			const commitment = String(result.proof.proof.commitment ?? "").slice(
-				0,
-				16,
-			);
-			const verificationLabel = result.verification.isValid
-				? "verified"
-				: "failed";
+        <article className="rounded-md border border-slate-200 bg-white p-5">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-950">Proof infrastructure</h3>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Engine</dt>
+                  <dd className="font-medium text-slate-900">{data?.proof.engine ?? "server"}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Prover</dt>
+                  <dd className="truncate font-mono text-xs text-slate-900">
+                    {data?.proof.proverUrl ? new URL(data.proof.proverUrl).host : "Not configured"}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Protocol</dt>
+                  <dd className="font-medium text-slate-900">
+                    Stellar {data?.ledger.protocolVersion ?? "?"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </article>
+      </div>
 
-			setProofState({
-				status: "success",
-				message: `Mock proof ${verificationLabel}. commitment: ${commitment}...`,
-			});
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : "Unknown proof error";
-			setProofState({
-				status: "error",
-				message: `Proof generation failed: ${message}`,
-			});
-		}
-	};
-
-	return (
-		<section className="space-y-6" aria-labelledby="payroll-summary-heading">
-			<h2 id="payroll-summary-heading" className="sr-only">
-				Payroll Summary
-			</h2>
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" role="list">
-				<article className="bg-white p-6 rounded-lg shadow-sm" role="listitem">
-					<h3 className="text-sm font-medium text-gray-600">Total Payroll</h3>
-					<p className="text-3xl font-bold text-gray-900 mt-2" aria-live="polite">$124,500</p>
-					<span className="text-green-700 text-sm font-medium">
-						+12% from last month
-					</span>
-				</article>
-				<article className="bg-white p-6 rounded-lg shadow-sm" role="listitem">
-					<h3 className="text-sm font-medium text-gray-600">
-						Active Employees
-					</h3>
-					<p className="text-3xl font-bold text-gray-900 mt-2" aria-live="polite">48</p>
-					<span className="text-gray-600 text-sm font-medium">
-						2 new this week
-					</span>
-				</article>
-				<article className="bg-white p-6 rounded-lg shadow-sm" role="listitem">
-					<h3 className="text-sm font-medium text-gray-600">
-						Pending Approvals
-					</h3>
-					<p className="text-3xl font-bold text-gray-900 mt-2" aria-live="polite">3</p>
-					<span className="text-yellow-700 text-sm font-medium">
-						Action required
-					</span>
-				</article>
-			</div>
-
-			<article className="bg-white p-6 rounded-lg shadow-sm space-y-3">
-				<h3 className="text-lg font-semibold text-gray-900">
-					Mock ZK Proof Generator
-				</h3>
-				<p className="text-sm text-gray-600">
-					Runs proof generation locally in-browser with placeholder artifacts
-					until final Soroban verifier deployment.
-				</p>
-				<button
-					type="button"
-					className="px-4 py-2 rounded-md bg-gray-900 text-white text-sm font-medium disabled:opacity-60 focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
-					onClick={handleGenerateMockProof}
-					disabled={proofState.status === "running"}
-					aria-live="polite"
-				>
-					{proofState.status === "running"
-						? "Generating..."
-						: "Generate Mock Payroll Proof"}
-				</button>
-				<p className={`text-sm ${proofToneClass}`} aria-live="polite" role="status">
-					{proofState.message ?? "No proof generated yet."}
-				</p>
-			</article>
-		</section>
-	);
+      <article className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-3">
+          <h3 className="text-sm font-semibold text-slate-950">Contracts</h3>
+        </div>
+        <dl className="divide-y divide-slate-100 text-sm">
+          {data && Object.entries(data.contracts).map(([label, value]) => (
+            <div key={label} className="grid grid-cols-1 gap-1 px-5 py-3 md:grid-cols-[180px_1fr]">
+              <dt className="font-medium capitalize text-slate-500">{label.replace(/([A-Z])/g, " $1")}</dt>
+              <dd className="break-all font-mono text-slate-900">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </article>
+    </section>
+  );
 }
+
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-md border border-slate-200 bg-white p-5">
+      <h3 className="text-sm font-medium text-slate-500">{label}</h3>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{detail}</p>
+    </article>
+  );
+}
+
 export default PayrollSummary;

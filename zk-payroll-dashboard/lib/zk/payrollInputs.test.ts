@@ -26,6 +26,7 @@ import {
   buildZkProofPrivateInputs,
   computeCommitmentId,
   employeeIdToFieldElement,
+  employeeSaltToFieldElement,
 } from "./payrollInputs";
 import { computeCommitment } from "./merkleTree";
 
@@ -55,6 +56,20 @@ describe("payroll input preparation", () => {
       salaryAmount: "125000,130000",
       salt: "10,11",
     });
+  });
+
+  it("derives stable default salts so employee roots are reproducible", async () => {
+    const first = await employeeSaltToFieldElement("emp_001", 125_000);
+    const second = await employeeSaltToFieldElement("emp_001", 125_000);
+    const otherSalary = await employeeSaltToFieldElement("emp_001", 130_000);
+    const slotsA = await buildPayrollSlots([{ id: "emp_001", salary: 125_000 }]);
+    const slotsB = await buildPayrollSlots([{ id: "emp_001", salary: 125_000 }]);
+
+    expect(first).toMatch(/^[0-9]+$/);
+    expect(first).toBe(second);
+    expect(first).not.toBe(otherSalary);
+    expect(slotsA[0].salt).toBe(first);
+    expect(slotsB[0].salt).toBe(first);
   });
 
   it("derives commitment ids with the withdraw circuit commitment-id domain", async () => {

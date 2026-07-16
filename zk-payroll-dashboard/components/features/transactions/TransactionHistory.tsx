@@ -39,14 +39,14 @@ function toCsvRow(values: string[]): string {
 }
 
 function exportToCsv(rows: PayrollTransaction[]): string {
-  const header = toCsvRow(["ID", "Date", "Status", "Total Amount", "Employees", "Tx Hash"]);
+  const header = toCsvRow(["ID", "Date", "Status", "Protocol Amount", "Employees", "Tx Hash"]);
   const body = rows
     .map((tx) =>
       toCsvRow([
         tx.id,
         new Date(tx.createdAt).toLocaleDateString(),
         tx.status,
-        `$${tx.totalAmount.toLocaleString()}`,
+        `${tx.totalAmount.toLocaleString()} units`,
         String(tx.employeeCount),
         tx.txHash ?? "N/A",
       ]),
@@ -113,7 +113,7 @@ function TransactionHistory() {
   const handleExport = () => {
     const csv = exportToCsv(filtered);
     const date = new Date().toISOString().slice(0, 10);
-    downloadCsv(csv, `payroll-history-${date}.csv`);
+    downloadCsv(csv, `paymage-proof-ledger-${date}.csv`);
   };
 
   const clearFilters = () => setFilters(initialFilters);
@@ -126,7 +126,7 @@ function TransactionHistory() {
             id="transaction-history-heading"
             className="text-lg font-medium text-gray-900"
           >
-            Transaction History
+            Proof Ledger
           </h3>
           <div className="flex items-center gap-2">
             <button
@@ -248,12 +248,12 @@ function TransactionHistory() {
                   htmlFor="filter-payroll-run"
                   className="block text-xs font-medium text-gray-600 mb-1"
                 >
-                  Payroll Run
+                  Event ID
                 </label>
                 <input
                   id="filter-payroll-run"
                   type="text"
-                  placeholder="Run ID..."
+                  placeholder="root-sync..."
                   value={filters.payrollRun}
                   onChange={(e) =>
                     setFilters((f) => ({ ...f, payrollRun: e.target.value }))
@@ -277,7 +277,7 @@ function TransactionHistory() {
 
         <table className="w-full text-left">
           <caption className="sr-only">
-            Payroll transactions with filtering and export
+            PayMage protocol events with filtering and export
           </caption>
           <thead className="bg-gray-50">
             <tr>
@@ -320,7 +320,7 @@ function TransactionHistory() {
                   colSpan={5}
                   className="px-6 py-8 text-center text-sm text-gray-500"
                 >
-                  No transactions match the current filters.
+                  No protocol events match the current filters.
                 </td>
               </tr>
             ) : (
@@ -338,13 +338,13 @@ function TransactionHistory() {
                         aria-hidden="true"
                       />
                     )}
-                    Payout
+                    Employee root sync
                   </td>
                   <td className="px-6 py-4 text-gray-900">
                     {tx.employeeCount} employees
                   </td>
                   <td className="px-6 py-4 font-medium text-gray-900">
-                    ${tx.totalAmount.toLocaleString()}
+                    {tx.totalAmount.toLocaleString()} units
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -369,7 +369,7 @@ function TransactionHistory() {
         </table>
 
         <div className="px-6 py-3 border-t text-xs text-gray-500">
-          Showing {filtered.length} of {MOCK_TRANSACTIONS.length} transactions
+          Showing {filtered.length} of {MOCK_TRANSACTIONS.length} protocol events
         </div>
       </div>
     </section>

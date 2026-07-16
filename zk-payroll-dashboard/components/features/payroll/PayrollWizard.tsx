@@ -20,6 +20,7 @@ import { useStellar } from "@/components/providers/StellarProvider";
 import { zkEngine, isRealZkEngineActive } from "@/lib/zk/engine";
 import { toSorobanScVals, toSorobanScValsFromRealProof } from "@/lib/zk/serialize";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
+import { PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
 import {
   buildPayrollSlots,
   buildZkProofPrivateInputs,
@@ -32,10 +33,10 @@ import { env } from "@/lib/env";
 import type { PayrollWizardStep, GeneratedPayrollProof } from "@/types";
 
 const STEPS: { key: PayrollWizardStep; label: string }[] = [
-  { key: "review", label: "Review" },
-  { key: "proof", label: "Proof Generation" },
-  { key: "confirm", label: "Confirmation" },
-  { key: "submit", label: "Submission" },
+  { key: "review", label: "Root Review" },
+  { key: "proof", label: "Proof" },
+  { key: "confirm", label: "Policy" },
+  { key: "submit", label: "Submit" },
 ];
 
 function stepIndex(step: PayrollWizardStep): number {
@@ -82,7 +83,7 @@ function PayrollWizard() {
   const [ipfsCids, setIpfsCids] = useState<Array<{ commitmentId: string; ipfsCid: string }>>([]);
 
   const allEmployees = useMemo(
-    () => (storedEmployees.length > 0 ? storedEmployees : []),
+    () => (storedEmployees.length > 0 ? storedEmployees : PAYMAGE_TESTNET_EMPLOYEES),
     [storedEmployees],
   );
 
@@ -323,8 +324,8 @@ function PayrollWizard() {
 
   return (
     <section aria-labelledby="payroll-wizard-heading" className="space-y-6">
-      <h2 id="payroll-wizard-heading" className="text-lg font-semibold text-gray-900">
-        Execute Payroll
+      <h2 id="payroll-wizard-heading" className="text-lg font-semibold text-slate-950">
+        Private Payroll
       </h2>
 
       <nav aria-label="Payroll execution progress" className="flex items-center">
@@ -332,13 +333,13 @@ function PayrollWizard() {
           <div key={step.key} className="flex items-center">
             <div className="flex items-center gap-2">
               {i < idx ? (
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <CheckCircle className="w-5 h-5 text-teal-700" />
               ) : i === idx ? (
                 <Loader2
                   className={`w-5 h-5 ${
                     currentStep === "proof" || currentStep === "submit"
-                      ? "text-indigo-600 animate-spin"
-                      : "text-indigo-600"
+                      ? "text-teal-700 animate-spin"
+                      : "text-teal-700"
                   }`}
                 />
               ) : (
@@ -355,7 +356,7 @@ function PayrollWizard() {
             {i < STEPS.length - 1 && (
               <div
                 className={`w-12 h-px mx-3 ${
-                  i < idx ? "bg-green-400" : "bg-gray-200"
+                  i < idx ? "bg-teal-500" : "bg-slate-200"
                 }`}
               />
             )}
@@ -363,7 +364,7 @@ function PayrollWizard() {
         ))}
       </nav>
 
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-md border border-slate-200 p-6">
         {currentStep === "review" && (
           <ReviewStep
             employeeIds={employeeIds}
@@ -423,12 +424,13 @@ function ReviewStep({
     return (
       <div className="text-center py-8">
         <p className="text-gray-600 mb-4">
-          No payroll run configured. Start a new payroll run to proceed.
+          No PayMage payroll batch is active. Start the testnet batch to build the
+          workforce root proof.
         </p>
         <button
           type="button"
           onClick={onStart}
-          className="px-6 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+          className="min-h-10 px-6 rounded-md bg-teal-700 text-white text-sm font-medium hover:bg-teal-800 transition-colors focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           Start Payroll Run
         </button>
@@ -438,29 +440,29 @@ function ReviewStep({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-gray-900">Payroll Review</h3>
-      <p className="text-sm text-gray-600">
-        Review the employees and amounts included in this payroll run before
-        generating the ZK proof.
+      <h3 className="text-sm font-semibold text-slate-950">Workforce root review</h3>
+      <p className="text-sm text-slate-600">
+        Review the employees committed into the PayMage Merkle root before generating
+        the aggregate payroll proof.
       </p>
-      <div className="border rounded-lg divide-y">
+      <div className="divide-y rounded-md border border-slate-200">
         {selectedEmployees.map((emp) => (
           <div key={emp.id} className="px-4 py-3 flex justify-between">
-            <span className="text-sm text-gray-900">{emp.name}</span>
-            <span className="text-sm font-medium text-gray-900">
-              ${emp.salary.toLocaleString()}
+            <span className="text-sm text-slate-900">{emp.name}</span>
+            <span className="text-sm font-medium text-slate-900">
+              {emp.salary.toLocaleString()} PAYME units
             </span>
           </div>
         ))}
       </div>
       <div className="flex justify-between items-center pt-2 border-t">
-        <span className="text-sm font-semibold text-gray-900">
-          Total: ${totalAmount.toLocaleString()}
+        <span className="text-sm font-semibold text-slate-950">
+          Total: {totalAmount.toLocaleString()} PAYME units
         </span>
         <button
           type="button"
           onClick={onNext}
-          className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-1"
+          className="inline-flex min-h-10 items-center gap-1 rounded-md bg-teal-700 px-4 text-sm font-medium text-white transition-colors hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           Continue
           <ArrowRight className="w-4 h-4" />
@@ -485,10 +487,11 @@ function ProofStep({
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-gray-900">ZK Proof Generation</h3>
-      <p className="text-sm text-gray-600">
-        A zero-knowledge proof will be generated by the hosted prover to prove
-        this payroll run without revealing individual salary details.
+      <h3 className="text-sm font-semibold text-slate-950">Server proof generation</h3>
+      <p className="text-sm text-slate-600">
+        The hosted prover generates a Groth16 proof for the payroll batch. The proof
+        binds the employee root, aggregate amount, and payroll period without exposing
+        individual salaries.
       </p>
 
       {status === "idle" && (
@@ -496,7 +499,7 @@ function ProofStep({
           <button
             type="button"
             onClick={onGenerate}
-            className="px-6 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+            className="min-h-10 rounded-md bg-teal-700 px-6 text-sm font-medium text-white transition-colors hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
           >
             Generate Proof
           </button>
@@ -505,12 +508,12 @@ function ProofStep({
 
       {status === "generating" && (
         <div className="text-center py-6 space-y-3">
-          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
-          <p className="text-sm text-gray-600">
-            Generating ZK proof... This may take a few moments.
+          <Loader2 className="w-8 h-8 text-teal-700 animate-spin mx-auto" />
+          <p className="text-sm text-slate-600">
+            Generating the PayMage payroll proof on the hosted prover. This can take about a minute.
           </p>
-          <div className="w-48 h-1.5 bg-gray-200 rounded-full mx-auto overflow-hidden">
-            <div className="h-full bg-indigo-600 rounded-full animate-pulse" style={{ width: "60%" }} />
+          <div className="w-48 h-1.5 bg-slate-200 rounded-full mx-auto overflow-hidden">
+            <div className="h-full bg-teal-700 rounded-full animate-pulse" style={{ width: "60%" }} />
           </div>
         </div>
       )}
@@ -534,7 +537,7 @@ function ProofStep({
         <button
           type="button"
           onClick={onBack}
-          className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-1"
+          className="inline-flex min-h-10 items-center gap-1 rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
@@ -560,35 +563,35 @@ function ConfirmStep({
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-gray-900">Confirm &amp; Submit</h3>
-      <p className="text-sm text-gray-600">
-        The ZK proof has been generated successfully. Review the final details
-        and submit the payroll transaction to the network.
+      <h3 className="text-sm font-semibold text-slate-950">Policy confirmation</h3>
+      <p className="text-sm text-slate-600">
+        The proof is ready. Review the policy inputs before submitting the payroll
+        transaction to Stellar testnet.
       </p>
 
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-        <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+      <div className="bg-teal-50 border border-teal-200 rounded-md p-4 flex items-start gap-3">
+        <CheckCircle className="w-5 h-5 text-teal-700 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-green-800">
+          <p className="text-sm font-medium text-teal-900">
             Proof verified successfully
           </p>
-          <p className="text-sm text-green-700 mt-1">
-            Commitment hash ready for on-chain submission.
+          <p className="text-sm text-teal-800 mt-1">
+            Proof bytes and public inputs are ready for on-chain payroll execution.
           </p>
         </div>
       </div>
 
-      <div className="border rounded-lg p-4 space-y-2">
+      <div className="border border-slate-200 rounded-md p-4 space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Employees</span>
-          <span className="font-medium text-gray-900">
+          <span className="text-slate-600">Employees</span>
+          <span className="font-medium text-slate-900">
             {selectedEmployees.length}
           </span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total Amount</span>
-          <span className="font-medium text-gray-900">
-            ${totalAmount.toLocaleString()}
+          <span className="text-slate-600">Aggregate amount</span>
+          <span className="font-medium text-slate-900">
+            {totalAmount.toLocaleString()} PAYME units
           </span>
         </div>
       </div>
@@ -597,7 +600,7 @@ function ConfirmStep({
         <button
           type="button"
           onClick={onBack}
-          className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-1"
+          className="inline-flex min-h-10 items-center gap-1 rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
@@ -606,9 +609,9 @@ function ConfirmStep({
           type="button"
           onClick={onSubmit}
           disabled={isSubmitting}
-          className="px-6 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="min-h-10 rounded-md bg-teal-700 px-6 text-sm font-medium text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
-          {isSubmitting ? "Submitting..." : "Submit Payroll"}
+          {isSubmitting ? "Submitting..." : "Submit PayMage Payroll"}
         </button>
       </div>
     </div>
@@ -630,12 +633,12 @@ function SubmitStep({
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-gray-900">Submission</h3>
+      <h3 className="text-sm font-semibold text-slate-950">Submission</h3>
 
       {status === "submitting" && (
         <div className="text-center py-8 space-y-3">
-          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
-          <p className="text-sm text-gray-600">
+          <Loader2 className="w-8 h-8 text-teal-700 animate-spin mx-auto" />
+          <p className="text-sm text-slate-600">
             Submitting payroll transaction to Stellar network...
           </p>
         </div>
@@ -643,22 +646,22 @@ function SubmitStep({
 
       {status === "success" && (
         <div className="text-center py-8 space-y-3">
-          <CheckCircle className="w-12 h-12 text-green-600 mx-auto" />
-          <h4 className="text-lg font-semibold text-gray-900">
-            Payroll Submitted
+          <CheckCircle className="w-12 h-12 text-teal-700 mx-auto" />
+          <h4 className="text-lg font-semibold text-slate-950">
+            PayMage payroll submitted
           </h4>
-          <p className="text-sm text-gray-600">
-            The transaction has been submitted to the network.
+          <p className="text-sm text-slate-600">
+            The transaction has been submitted to Stellar testnet.
           </p>
           {transactionHash && (
-            <p className="font-mono text-xs text-gray-500 break-all">
+            <p className="font-mono text-xs text-slate-500 break-all">
               Tx: {transactionHash}
             </p>
           )}
           <button
             type="button"
             onClick={onReset}
-            className="mt-4 px-6 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+            className="mt-4 min-h-10 rounded-md bg-slate-100 px-6 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
           >
             Start New Payroll
           </button>
@@ -682,7 +685,7 @@ function SubmitStep({
             <button
               type="button"
               onClick={onReset}
-              className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+              className="min-h-10 rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
             >
               Start Over
             </button>

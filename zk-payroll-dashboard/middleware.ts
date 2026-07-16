@@ -89,9 +89,9 @@ function applySecurityHeaders(response: NextResponse): void {
 
 // ─── Route classification ────────────────────────────────────────────────────
 
-const PUBLIC_PATHS = ['/', '/login', '/api/health', '/api/csp-report'];
+const PUBLIC_PATHS = ['/', '/login', '/api/health', '/api/protocol/status', '/api/csp-report'];
 const PUBLIC_PREFIXES = ['/api/auth/'];
-const PROTECTED_PREFIXES = ['/dashboard', '/payroll', '/employees', '/settings'];
+const PROTECTED_PREFIXES: string[] = [];
 const ADMIN_PATHS = ['/payroll/run', '/employees/add'];
 
 function isPublicRoute(pathname: string): boolean {

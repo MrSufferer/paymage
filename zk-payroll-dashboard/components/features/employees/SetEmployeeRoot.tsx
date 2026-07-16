@@ -10,6 +10,7 @@ import { useCompanyStore } from "@/stores/company";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
 import { buildPayrollSlots } from "@/lib/zk/payrollInputs";
+import { PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
 import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
 
@@ -25,7 +26,7 @@ function SetEmployeeRoot() {
   const [lastPostedRoot, setLastPostedRoot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const activeEmployees = employees.filter((e) => e.isActive);
+  const activeEmployees = (employees.length > 0 ? employees : PAYMAGE_TESTNET_EMPLOYEES).filter((e) => e.isActive);
 
   const fetchContractRoot = useCallback(async () => {
     if (!env.NEXT_PUBLIC_PAYROLL_CONTRACT) return;

@@ -54,23 +54,34 @@ export async function employeeIdToFieldElement(employeeId: string): Promise<stri
   return (bytesToBigInt(new Uint8Array(digest)) % BN254_FR_MODULUS).toString();
 }
 
-function randomFieldElement(): bigint {
-  const bytes = new Uint8Array(32);
-  getCrypto().getRandomValues(bytes);
-  return bytesToBigInt(bytes) % BN254_FR_MODULUS;
+export async function employeeSaltToFieldElement(
+  employeeId: string,
+  salary: number,
+): Promise<string> {
+  const digest = await getCrypto().subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`zk-payroll:salary-salt:${employeeId}:${salary}`),
+  );
+  return (bytesToBigInt(new Uint8Array(digest)) % BN254_FR_MODULUS).toString();
 }
 
 export async function buildPayrollSlots(
   employees: PayrollEmployeeInput[],
-  saltForIndex: (index: number) => bigint = () => randomFieldElement(),
+  saltForIndex?: (index: number) => bigint,
 ): Promise<PayrollSlot[]> {
   return Promise.all(
-    employees.map(async (employee, index) => ({
-      sourceEmployeeId: employee.id,
-      employeeId: await employeeIdToFieldElement(employee.id),
-      salaryAmount: employee.salary.toString(),
-      salt: saltForIndex(index).toString(),
-    })),
+    employees.map(async (employee, index) => {
+      const salt = saltForIndex
+        ? saltForIndex(index).toString()
+        : await employeeSaltToFieldElement(employee.id, employee.salary);
+
+      return {
+        sourceEmployeeId: employee.id,
+        employeeId: await employeeIdToFieldElement(employee.id),
+        salaryAmount: employee.salary.toString(),
+        salt,
+      };
+    }),
   );
 }
 
