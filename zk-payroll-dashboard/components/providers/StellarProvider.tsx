@@ -17,7 +17,7 @@ import {
     signTransaction,
 } from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { Api as RpcApi, assembleTransaction, Server as SorobanServer } from '@stellar/stellar-sdk/rpc';
+import { Api as RpcApi, Server as SorobanServer } from '@stellar/stellar-sdk/rpc';
 import { useWalletStore, NETWORK_PASSPHRASES, StellarNetwork } from '@/stores/walletStore';
 import { WalletErrorOverlay } from './WalletErrorOverlay';
 import { createLogger } from '@/lib/logger';
@@ -335,7 +335,7 @@ export const StellarProvider: React.FC<{ children: React.ReactNode }> = ({
                     return null;
                 }
 
-                const preparedTx = assembleTransaction(transaction, simResult).build();
+                const preparedTx = StellarSdk.rpc.assembleTransaction(transaction, simResult).build();
 
                 const signedXdr = await signTx(preparedTx.toXDR());
                 if (!signedXdr) return null;
