@@ -271,6 +271,9 @@ function ComplianceManager() {
               Payroll and verifier addresses are read from the production Vercel environment and
               checked against Stellar Testnet.
             </p>
+            <p className="mt-2 text-xs font-medium uppercase tracking-normal text-teal-700">
+              Verifier mode: {protocol?.proof.verifierMode ?? "Loading"}
+            </p>
           </div>
           <button
             type="button"

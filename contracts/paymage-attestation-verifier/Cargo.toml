@@ -1,0 +1,17 @@
+[package]
+name = "paymage-attestation-verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+contract-types = { workspace = true }
+soroban-sdk = { workspace = true, features = ["alloc"] }
+
+[lints]
+workspace = true

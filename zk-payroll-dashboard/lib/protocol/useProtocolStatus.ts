@@ -31,6 +31,7 @@ export interface ProtocolStatus {
   };
   proof: {
     engine: string;
+    verifierMode: string;
     proverUrl: string | null;
   };
   updatedAt: string;

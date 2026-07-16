@@ -113,6 +113,9 @@ export async function GET() {
     },
     proof: {
       engine: process.env.NEXT_PUBLIC_ZK_ENGINE ?? "mock",
+      verifierMode:
+        process.env.NEXT_PUBLIC_VERIFIER_MODE ??
+        "server-attested compatibility verifier",
       proverUrl:
         process.env.NEXT_PUBLIC_PAYROLL_PROVER_URL ??
         process.env.PAYROLL_PROVER_URL ??
