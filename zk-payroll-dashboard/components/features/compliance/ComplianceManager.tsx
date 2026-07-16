@@ -21,6 +21,7 @@ import { useViewKeyStore } from "@/stores/viewKeys";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
 import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
+import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
 import type { ViewKey } from "@/types";
 
 function isStellarAddress(address: string): boolean {
@@ -36,9 +37,16 @@ function generateKeyId(): string {
   return result;
 }
 
+function shortAddress(value: string | null | undefined): string {
+  if (!value) return "Not configured";
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 6)}...${value.slice(-6)}`;
+}
+
 function ComplianceManager() {
   const { viewKeys, addViewKey, revokeViewKey } = useViewKeyStore();
   const { publicKey, isConnected, network } = useWalletStore();
+  const { data: protocol, error: protocolError, isLoading: isProtocolLoading, refresh } = useProtocolStatus();
   const [showForm, setShowForm] = useState(false);
   const [isContractCall, setIsContractCall] = useState(false);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
@@ -186,6 +194,8 @@ function ComplianceManager() {
 
   const activeKeys = viewKeys.filter((k) => k.isActive);
   const inactiveKeys = viewKeys.filter((k) => !k.isActive);
+  const rootStatus = protocol?.payroll.rootMatchesDemo ? "Synced" : "Needs sync";
+  const auditorActionReady = Boolean(protocol?.contracts.payroll && isConnected);
 
   return (
     <section aria-labelledby="compliance-heading" className="space-y-6">
@@ -195,11 +205,11 @@ function ComplianceManager() {
             id="compliance-heading"
             className="text-lg font-semibold text-gray-900"
           >
-            Selective disclosure
+            Compliance
           </h2>
           <p className="text-sm text-gray-600 mt-1">
-            Manage auditor access for encrypted salary disclosures and prepare
-            the ZK KYC layer for Vietnam-first institutions.
+            Testnet compliance console for auditor disclosure, payroll root
+            checks, and the Vietnam-first ZK KYC rollout.
           </p>
         </div>
         <button
@@ -208,8 +218,86 @@ function ComplianceManager() {
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Grant Auditor
+          Grant Auditor View Key
         </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <article className="rounded-md border border-slate-200 bg-white p-4">
+          <p className="text-xs font-medium uppercase text-slate-500">Ledger</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {isProtocolLoading ? "Loading" : protocol?.ledger.sequence ?? "Unavailable"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Protocol {protocol?.ledger.protocolVersion ?? "-"} on Stellar Testnet
+          </p>
+        </article>
+        <article className="rounded-md border border-slate-200 bg-white p-4">
+          <p className="text-xs font-medium uppercase text-slate-500">Payroll root</p>
+          <p className={`mt-2 text-lg font-semibold ${
+            protocol?.payroll.rootMatchesDemo ? "text-teal-700" : "text-red-700"
+          }`}>
+            {isProtocolLoading ? "Loading" : rootStatus}
+          </p>
+          <p className="mt-1 font-mono text-xs text-slate-500">
+            {shortAddress(protocol?.payroll.employeeRootHex)}
+          </p>
+        </article>
+        <article className="rounded-md border border-slate-200 bg-white p-4">
+          <p className="text-xs font-medium uppercase text-slate-500">Payroll period</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {isProtocolLoading ? "Loading" : `#${protocol?.payroll.currentPeriod ?? "?"}`}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Next amount {protocol?.payroll.nextPayrollAmount.toLocaleString() ?? "-"} PAYME units
+          </p>
+        </article>
+        <article className="rounded-md border border-slate-200 bg-white p-4">
+          <p className="text-xs font-medium uppercase text-slate-500">Treasury</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">
+            {isProtocolLoading ? "Loading" : `${protocol?.payroll.treasuryBalance ?? "0"} PAYME`}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Cap {protocol?.payroll.budgetCap ?? "-"} PAYME
+          </p>
+        </article>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-950">Live protocol contracts</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Payroll and verifier addresses are read from the production Vercel environment and
+              checked against Stellar Testnet.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={refresh}
+            className="inline-flex items-center justify-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Refresh
+          </button>
+        </div>
+        {protocolError ? (
+          <p className="mt-3 text-sm text-red-700">{protocolError}</p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-xs uppercase text-slate-500">Payroll</p>
+              <p className="mt-1 font-mono text-slate-900">{shortAddress(protocol?.contracts.payroll)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-500">Payroll verifier</p>
+              <p className="mt-1 font-mono text-slate-900">{shortAddress(protocol?.contracts.payrollVerifier)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-500">Withdraw verifier</p>
+              <p className="mt-1 font-mono text-slate-900">{shortAddress(protocol?.contracts.withdrawVerifier)}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -221,8 +309,9 @@ function ComplianceManager() {
             </h3>
             <p className="text-sm text-amber-700 mt-1">
               PayMage stores public payroll commitments on Stellar while salary
-              details remain encrypted. Auditor view keys unlock only the
-              disclosure scope granted by the employer.
+              details remain encrypted. Auditor view keys call the payroll
+              contract disclosure methods and unlock only the scope granted by
+              the employer.
             </p>
           </div>
         </div>
@@ -362,8 +451,9 @@ function ComplianceManager() {
         <div className="rounded-md border border-slate-200 bg-white p-6">
           <h3 className="text-sm font-semibold text-slate-950">No auditor keys granted</h3>
           <p className="mt-2 text-sm text-slate-600">
-            This is the correct current testnet state. Grant an auditor key only when a
-            real Stellar auditor address is ready to receive encrypted disclosure access.
+            No auditor key has been granted in this browser session. Grant an auditor key
+            with a real Stellar testnet address to call the payroll contract disclosure
+            method.
           </p>
         </div>
       )}
@@ -391,6 +481,13 @@ function ComplianceManager() {
           </p>
         </article>
       </div>
+
+      {!auditorActionReady && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          Connect a Stellar Testnet wallet to grant or revoke auditor access. Judges can still
+          verify the live protocol contracts and payroll readiness above without signing.
+        </div>
+      )}
 
       {inactiveKeys.length > 0 && (
         <div>

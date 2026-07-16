@@ -19,7 +19,7 @@ const navItems = [
   { href: "/payroll/execute", label: "Private Payroll", icon: Play },
   { href: "/history", label: "Proof Ledger", icon: History },
   { href: "/treasury", label: "Treasury", icon: Landmark },
-  { href: "/compliance", label: "Disclosure", icon: Shield },
+  { href: "/compliance", label: "Compliance", icon: Shield },
   { href: "/infrastructure", label: "ZK KYC", icon: BadgeCheck },
   { href: "/setup", label: "Institution Setup", icon: Building2 },
 ] as const;

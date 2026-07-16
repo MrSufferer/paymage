@@ -10,7 +10,7 @@ const pageLabels: Record<string, string> = {
   "/payroll/execute": "Private Payroll",
   "/history": "Proof Ledger",
   "/treasury": "Treasury",
-  "/compliance": "Disclosure",
+  "/compliance": "Compliance",
   "/infrastructure": "ZK KYC Infrastructure",
   "/setup": "Institution Setup",
   "/withdraw": "Employee Withdrawal",
