@@ -5,6 +5,11 @@
 .env.*
 
 **/target
+!target
+!target/circuits-artifacts
+!target/circuits-artifacts/debug
+!target/circuits-artifacts/debug/payroll_10_10.r1cs
+!target/circuits-artifacts/debug/payroll_10_10.wasm
 **/node_modules
 **/dist
 **/build

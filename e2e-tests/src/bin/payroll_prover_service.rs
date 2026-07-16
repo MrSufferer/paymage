@@ -72,6 +72,9 @@ fn handle_stream(stream: &mut TcpStream) -> Result<()> {
     if request_line.starts_with("GET ") {
         return write_json_response(stream, 200, &json!({ "status": "ok" }));
     }
+    if request_line.starts_with("OPTIONS ") {
+        return write_json_response(stream, 204, &json!({}));
+    }
     if !request_line.starts_with("POST ") {
         return write_json_response(stream, 405, &json!({ "error": "method not allowed" }));
     }
@@ -84,7 +87,7 @@ fn handle_stream(stream: &mut TcpStream) -> Result<()> {
         body_bytes.to_vec()
     };
     let body = String::from_utf8(body).context("request body was not valid utf-8")?;
-    let response = prove_from_request_body(body)?;
+    let response = prove_from_request_body(&body)?;
     write_json_response(stream, 200, &response)
 }
 
@@ -242,13 +245,16 @@ fn write_json_response(stream: &mut TcpStream, status: u16, body: &Value) -> Res
     let body = serde_json::to_vec(body)?;
     let reason = match status {
         200 => "OK",
+        204 => "No Content",
         405 => "Method Not Allowed",
         500 => "Internal Server Error",
         _ => "OK",
     };
+    let allowed_origin =
+        env::var("PAYROLL_PROVER_ALLOWED_ORIGIN").unwrap_or_else(|_| "*".to_string());
     write!(
         stream,
-        "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\naccess-control-allow-origin: {allowed_origin}\r\naccess-control-allow-methods: GET, POST, OPTIONS\r\naccess-control-allow-headers: content-type, authorization\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
         body.len(),
     )?;
     stream.write_all(&body)?;
@@ -266,7 +272,16 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for candidate in manifest_dir.ancestors() {
+        if candidate
+            .join("testdata/payroll_10_10_proving_key.bin")
+            .exists()
+        {
+            return candidate.to_path_buf();
+        }
+    }
+    manifest_dir
         .parent()
         .expect("workspace root")
         .to_path_buf()

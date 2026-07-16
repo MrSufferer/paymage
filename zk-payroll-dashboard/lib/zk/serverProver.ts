@@ -26,6 +26,11 @@ export interface ServerPayrollProofResult extends RealProofResult {
   proverVersion?: string;
 }
 
+function configuredBrowserProverUrl(): string | null {
+  const value = process.env.NEXT_PUBLIC_PAYROLL_PROVER_URL?.trim();
+  return value ? value : null;
+}
+
 function assertProofResult(value: unknown): ServerPayrollProofResult {
   const result = value as Partial<ServerPayrollProofResult>;
   if (typeof result.proofHex !== "string" || result.proofHex.replace(/^0x/i, "").length !== 512) {
@@ -48,7 +53,7 @@ function assertProofResult(value: unknown): ServerPayrollProofResult {
 
 export async function requestServerPayrollProof(
   request: ZkProofRequest,
-  endpoint = "/api/zk/payroll/prove",
+  endpoint = configuredBrowserProverUrl() ?? "/api/zk/payroll/prove",
 ): Promise<ServerPayrollProofResult> {
   const inputsJson = await buildPayrollCircuitInputFromProofRequest(request);
   const response = await fetch(endpoint, {
@@ -57,16 +62,23 @@ export async function requestServerPayrollProof(
     body: JSON.stringify({ inputsJson, publicInputs: request.publicInputs }),
   });
 
-  const payload = (await response.json()) as ApiResponse<ServerPayrollProofResult> | null;
-  if (!payload || !response.ok || !payload.success) {
+  const payload = (await response.json()) as ApiResponse<ServerPayrollProofResult> | ServerPayrollProofResult | null;
+  if (!payload || !response.ok) {
+    const apiPayload = payload as ApiError | null;
     const message =
-      payload && !payload.success
-        ? payload.error.message
+      apiPayload && "success" in apiPayload && !apiPayload.success
+        ? apiPayload.error.message
         : "Server prover failed";
     throw new Error(message);
   }
 
-  return assertProofResult(payload.data);
+  if ("success" in payload && !payload.success) {
+    const message =
+      payload.error.message;
+    throw new Error(message);
+  }
+
+  return assertProofResult("success" in payload ? payload.data : payload);
 }
 
 export function proofResultToPayrollProof(result: ServerPayrollProofResult): PayrollProof {

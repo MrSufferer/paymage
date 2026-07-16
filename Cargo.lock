@@ -3562,6 +3562,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "payroll-prover-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ark-bn254 0.6.0",
+ "ark-circom",
+ "ark-ff 0.6.0",
+ "ark-groth16",
+ "ark-relations",
+ "ark-serialize 0.6.0",
+ "ark-snark",
+ "ark-std 0.6.0",
+ "serde",
+ "serde_json",
+ "wasmer",
+ "witness",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

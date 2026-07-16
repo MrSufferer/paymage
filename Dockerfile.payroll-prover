@@ -1,0 +1,30 @@
+FROM public.ecr.aws/docker/library/rust:1.92-bookworm AS builder
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends clang cmake git pkg-config \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+RUN cargo build -p payroll-prover-service --bin payroll_prover_service
+
+FROM public.ecr.aws/docker/library/debian:bookworm-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/debug/payroll_prover_service /usr/local/bin/payroll_prover_service
+COPY testdata/payroll_10_10_proving_key.bin /app/testdata/payroll_10_10_proving_key.bin
+COPY target/circuits-artifacts/debug/payroll_10_10.r1cs /app/target/circuits-artifacts/debug/payroll_10_10.r1cs
+COPY target/circuits-artifacts/debug/payroll_10_10.wasm /app/target/circuits-artifacts/debug/payroll_10_10.wasm
+
+ENV PAYROLL_PROVER_BIND=0.0.0.0:8080
+
+EXPOSE 8080
+
+CMD ["payroll_prover_service"]

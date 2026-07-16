@@ -15,6 +15,15 @@ function buildCsp(): string {
       return null;
     }
   })();
+  const payrollProverOrigin = (() => {
+    const value = process.env.NEXT_PUBLIC_PAYROLL_PROVER_URL;
+    if (!value) return null;
+    try {
+      return new URL(value).origin;
+    } catch {
+      return null;
+    }
+  })();
 
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
@@ -53,6 +62,9 @@ function buildCsp(): string {
 
   if (zkArtifactOrigin) {
     directives['connect-src'].push(zkArtifactOrigin);
+  }
+  if (payrollProverOrigin) {
+    directives['connect-src'].push(payrollProverOrigin);
   }
 
   if (!isDev) {

@@ -15,6 +15,7 @@ members = [
     "contracts/*",
     "e2e-tests",
     "poseidon2",
+    "tools/payroll-prover-service",
     "tools/ceremony-cli",
 ]
 exclude = ["tools/bootnode"]
