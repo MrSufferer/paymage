@@ -20,7 +20,7 @@ import { useStellar } from "@/components/providers/StellarProvider";
 import { zkEngine, isRealZkEngineActive } from "@/lib/zk/engine";
 import { toSorobanScVals, toSorobanScValsFromRealProof } from "@/lib/zk/serialize";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
-import { PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
+import { PAYMAGE_PROTOCOL, PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
 import {
   buildPayrollSlots,
   buildZkProofPrivateInputs,
@@ -48,6 +48,11 @@ function normalizePeriod(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number(value);
   return 0;
+}
+
+function shortAddress(value: string | null | undefined): string {
+  if (!value) return "Not connected";
+  return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
 
 function PayrollWizard() {
@@ -81,6 +86,8 @@ function PayrollWizard() {
   const [isLoadingRoot, setIsLoadingRoot] = useState(false);
   const [salarySlots, setSalarySlots] = useState<PayrollSlot[]>([]);
   const [ipfsCids, setIpfsCids] = useState<Array<{ commitmentId: string; ipfsCid: string }>>([]);
+  const payrollAdmin = PAYMAGE_PROTOCOL.admin;
+  const isPayrollAdminWallet = publicKey === payrollAdmin;
 
   const allEmployees = useMemo(
     () => (storedEmployees.length > 0 ? storedEmployees : PAYMAGE_TESTNET_EMPLOYEES),
@@ -249,6 +256,13 @@ function PayrollWizard() {
       toast.error("No proof generated. Please go back and generate a proof first.");
       return;
     }
+    if (!isPayrollAdminWallet) {
+      const msg = `Switch Freighter to the payroll admin wallet ${shortAddress(payrollAdmin)} before submitting.`;
+      setSubmissionStatus("error");
+      setSubmissionError(msg);
+      toast.error("Payroll admin wallet required", { description: msg });
+      return;
+    }
 
     setSubmissionStatus("submitting");
     setSubmissionError(null);
@@ -318,7 +332,7 @@ function PayrollWizard() {
       setSubmissionError(msg);
       toast.error("Submission failed", { description: msg });
     }
-  }, [generatedProof, salarySlots, selectedEmployees, invokeContract, setSubmissionStatus, setSubmissionError, setTransactionHash, nextStep]);
+  }, [generatedProof, isPayrollAdminWallet, payrollAdmin, salarySlots, selectedEmployees, invokeContract, setSubmissionStatus, setSubmissionError, setTransactionHash, nextStep]);
 
   const idx = stepIndex(currentStep);
 
@@ -389,6 +403,9 @@ function PayrollWizard() {
             selectedEmployees={selectedEmployees}
             totalAmount={totalAmount}
             isSubmitting={submissionStatus === "submitting"}
+            connectedWallet={publicKey}
+            payrollAdmin={payrollAdmin}
+            canSubmit={isPayrollAdminWallet}
             onBack={prevStep}
             onSubmit={handleSubmit}
           />
@@ -551,6 +568,9 @@ function ConfirmStep({
   selectedEmployees,
   totalAmount,
   isSubmitting,
+  connectedWallet,
+  payrollAdmin,
+  canSubmit,
   onBack,
   onSubmit,
 }: {
@@ -558,6 +578,9 @@ function ConfirmStep({
   selectedEmployees: { id: string; name: string; salary: number }[];
   totalAmount: number;
   isSubmitting: boolean;
+  connectedWallet: string | null;
+  payrollAdmin: string;
+  canSubmit: boolean;
   onBack: () => void;
   onSubmit: () => void;
 }) {
@@ -594,7 +617,36 @@ function ConfirmStep({
             {totalAmount.toLocaleString()} PAYME units
           </span>
         </div>
+        <div className="flex justify-between gap-4 text-sm">
+          <span className="text-slate-600">Connected wallet</span>
+          <span className="font-mono text-xs font-medium text-slate-900">
+            {shortAddress(connectedWallet)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4 text-sm">
+          <span className="text-slate-600">Required admin</span>
+          <span className="font-mono text-xs font-medium text-slate-900">
+            {shortAddress(payrollAdmin)}
+          </span>
+        </div>
       </div>
+
+      {!canSubmit && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Payroll admin wallet required
+              </p>
+              <p className="mt-1 text-sm text-amber-800">
+                This contract requires admin authorization for payroll execution.
+                Switch Freighter to {shortAddress(payrollAdmin)} before submitting.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-between pt-4 border-t">
         <button
@@ -608,7 +660,7 @@ function ConfirmStep({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canSubmit}
           className="min-h-10 rounded-md bg-teal-700 px-6 text-sm font-medium text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           {isSubmitting ? "Submitting..." : "Submit PayMage Payroll"}

@@ -25,10 +25,7 @@ function pinataHeaders(): Record<string, string> {
  * is a stable base32 SHA-256 of the payload so smoke-test runs are reproducible
  * and the on-chain `run_payroll` call still receives a well-formed string.
  *
- * NOTE: the encrypted blob is NOT retrievable from real IPFS in this mode —
- * `run_payroll` will still execute on-chain, but auditors cannot pull the
- * ciphertext back off IPFS. Configure `NEXT_PUBLIC_PINATA_API_KEY` for any
- * deploy that needs real blob retrieval.
+ * NOTE: the encrypted blob is NOT retrievable from real IPFS in this mode.
  */
 function mockCid(data: Uint8Array): string {
   // Tiny synchronous SHA-256 fallback using a fixed-key mixing function is not
@@ -61,9 +58,19 @@ function mockCid(data: Uint8Array): string {
 }
 
 export async function uploadToIpfs(data: Uint8Array): Promise<IpfsUploadResult> {
+  const internalUpload = await fetch("/api/ipfs/upload", {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream" },
+    body: new Blob([data as unknown as BlobPart]),
+  }).catch(() => null);
+
+  if (internalUpload?.ok) {
+    return (await internalUpload.json()) as IpfsUploadResult;
+  }
+
   if (!PINATA_API_KEY) {
     log.warn(
-      "NEXT_PUBLIC_PINATA_API_KEY not set — using mock demo CID. Encrypted blob is NOT on real IPFS.",
+      "PINATA_JWT not configured on the upload API — using mock demo CID. Encrypted blob is NOT on real IPFS.",
     );
     const cid = mockCid(data);
     return { cid, size: data.length, mock: true };
