@@ -1000,15 +1000,21 @@ This phase blocks ZK KYC work until the existing payroll app works end-to-end on
 - **Status**: ZK layer complete (20/20 contract tests, 55/55 vitest, 2/2 E2E, testnet live). Grant features (Phases 8-10) planned and ready for implementation.
 - **Test results**: `npm run typecheck` clean. `npm test` 53/53 pass. `npm run build` 17/17 clean.
 
+**2026-07-17 (dashboard data sync fixes)**:
+- **Phase 13 added** — 7 tasks, all DONE. Fixed three production-rendering bugs: (1) getEvents lookback exceeded Stellar RPC per-request scan limit, hiding new payroll proofs in the Proof Ledger; (2) stale hardcoded fallback events masked the regression; (3) `rootMatchesDemo` compared the live on-chain root against a stale hardcoded constant, causing a false-positive Treasury warning after workforce root updates.
+- **Commit `a2a7332`** pushed to `origin/paymage-app-runner-prover`. Deployed to Vercel production.
+- **Playwright E2E verified**: Proof Ledger shows 11 live testnet events (including new payroll proof at ledger 3,650,210); Treasury shows live balance with no false warning; sidebar nav reordered with Upcoming badge on ZK KYC + Ramps.
+- **Status**: 65 vitest pass, 9 pre-existing failures (zero regressions). Lint + typecheck clean. Vercel production live.
+
 ---
 
-## Current Focus & Next Steps (2026-07-15 — payroll testnet/Vercel gate)
+## Current Focus & Next Steps (2026-07-17 — dashboard sync fixes complete)
 
-**Progress**: The payroll app now has a pragmatic deployed proof path: `NEXT_PUBLIC_ZK_ENGINE=server` builds the browser-shaped circuit input in the dashboard, calls `/api/zk/payroll/prove`, and delegates real proof generation to `payroll_prover_service`. Local regenerated artifacts produced a valid 256-byte payroll proof smoke, `npm test` passed 72 tests, `npm run typecheck` passed, and a Vercel preview is ready at `https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app`.
+**Progress**: Phase 13 (Dashboard Data Sync Fixes) is complete. After a successful payroll proof submission on testnet, the Proof Ledger was not rendering the new event, and the Treasury tab showed a false "out of sync" warning. Root causes: (1) `getEvents` lookback exceeded the Stellar RPC per-request scan limit (~10k ledgers), excluding the newest events; (2) hardcoded fallback events masked the regression; (3) `rootMatchesDemo` compared the live root against a stale hardcoded constant. All three are fixed, deployed to Vercel production, and verified via Playwright.
 
-**Current production-readiness gap**: The preview still depends on a temporary Serveo tunnel backed by local detached `screen` sessions, and the final browser/Freighter testnet transaction has not been captured. This means payroll is demo-ready for controlled validation, but not production-ready or grant-judge-ready until Phase 12 is closed.
+**Phase 12 (testnet production-readiness gate) status**: The payroll app generates real proofs via server mode and the Vercel production deployment renders live testnet data correctly. The remaining Phase 12 gaps are: (1) manual browser E2E with Freighter to capture a confirmed tx hash, (2) verifying deployed verifier VKs match regenerated artifacts, (3) replacing the temporary Serveo/screen proof runtime with durable hosting.
 
-### July 15 Status Checklist
+### July 17 Status Checklist
 
 - [x] Server-proof dashboard mode implemented (`NEXT_PUBLIC_ZK_ENGINE=server`)
 - [x] Payroll proof API route validates public statement before proxying to the prover
@@ -1016,8 +1022,11 @@ This phase blocks ZK KYC work until the existing payroll app works end-to-end on
 - [x] Browser-to-Circom payroll input normalization added
 - [x] `payroll_10_10` and `payrollWithdraw_10` local artifacts regenerated
 - [x] Native proof smoke produced proof/public inputs from dashboard-shaped input
-- [x] Vercel preview deployed with current testnet contract IDs and server-proof mode
-- [ ] Manual browser E2E on Vercel preview with Freighter
+- [x] Vercel production deployed with current testnet contract IDs and server-proof mode
+- [x] Dashboard renders live testnet events (Proof Ledger shows 11 live events)
+- [x] Treasury shows live balance/budget cap/root status without false warnings
+- [x] Sidebar nav reordered (Institution Setup above ZK KYC + Ramps) with Upcoming badge
+- [ ] Manual browser E2E on Vercel production with Freighter
 - [ ] Confirm active deployed verifier VKs match regenerated proving artifacts, or redeploy
 - [ ] Replace Serveo/screen proof runtime with durable hosting, or finish browser-native prover
 
@@ -1025,8 +1034,8 @@ This phase blocks ZK KYC work until the existing payroll app works end-to-end on
 
 | Target | Value |
 |---|---|
-| Vercel preview | `https://paymage-vercel-server-proof-hmubvs0jb-gadillacers-projects.vercel.app` |
-| Payroll contract | `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF` |
+| Vercel production | `https://paymage-vercel-server-proof-gadillacers-projects.vercel.app` |
+| Payroll contract | `CBH7BYNPDIFPLCERBYAYNWALFGWSM6UB3FUEJGEKVGPLH5LTYRULRYFR` (live events confirmed) |
 | Payroll verifier | `CCSE6A4JH4KDWE63XMJ62LZBJTKJY4AEY3Q6FIACTKXZMNAX2NA7HRI6` |
 | Withdraw verifier | `CCARTGQLYGE2TCFFGPNC2B4IXUZJV4Y5QZWNHX4CXEREDLVIB3XYY5DH` |
 | Token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
@@ -1035,8 +1044,64 @@ This phase blocks ZK KYC work until the existing payroll app works end-to-end on
 
 ### Next Actions
 
-1. **Close Task 12.1**: run the Vercel preview manually with Freighter, generate a real payroll proof through server mode, submit `run_payroll()`, and record the confirmed Stellar testnet tx hash.
+1. **Close Task 12.1**: run the Vercel production manually with Freighter, generate a real payroll proof through server mode, submit `run_payroll()`, and record the confirmed Stellar testnet tx hash.
 2. **Close Task 12.2**: verify the active verifier contracts match current regenerated VKs; if there is any mismatch, redeploy verifier/payroll contracts and redeploy Vercel with the new IDs.
 3. **Close Task 12.3**: replace the Serveo/screen proof backend with durable HTTPS hosting so Vercel proof generation survives laptop sleep/restarts.
+4. **Fix 9 pre-existing test failures**: `PayrollSummary`/`TransactionHistory` smoke tests have a table caption mismatch and missing mock data — unrelated to Phase 13 but should be fixed before grant submission.
 
-**Planning decision**: Do not start ZK KYC implementation yet. ZK KYC should begin only after the payroll browser testnet path is confirmed from Vercel, because KYC will reuse the same dashboard transaction, proof infrastructure, verifier freshness, and deployment discipline.
+---
+
+### Phase 13: Dashboard Data Sync Fixes (NEW — added 2026-07-17)
+
+Fixes three production-rendering bugs discovered after a successful payroll proof submission on testnet. The Proof Ledger and Treasury tabs were showing stale or incorrect data despite live on-chain events existing.
+
+#### Task 13.1 — Fix getEvents lookback exceeding RPC per-request scan limit (DONE 2026-07-17)
+**Files**: `app/api/transactions/route.ts`, `app/api/compliance/auditors/route.ts`, `lib/protocol/paymage.ts`
+**Changes applied**:
+- Extracted shared `EVENT_LOOKBACK_LEDGERS = 9_000` constant to `lib/protocol/paymage.ts`
+- Transactions route: changed lookback from `20_000` → `9_000` (Stellar public testnet RPC silently caps getEvents scan to ~10,000 ledgers per request; old range `[latest-20000, latest-10000]` excluded the most recent ~10k ledgers where new events land)
+- Compliance/auditors route: changed lookback from `100_000` → `9_000` (same bug, worse — scanned entirely stale range)
+**Validation**: `curl /api/transactions?limit=100` returns 11 live events including the new payroll proof at ledger 3,650,210; Playwright confirms `/history` page renders it.
+**Severity**: BLOCKING — CLOSED.
+
+#### Task 13.2 — Remove stale hardcoded fallback events (DONE 2026-07-17)
+**File**: `app/api/transactions/route.ts`
+**Changes applied**: Deleted `PRODUCTION_EVENT_FALLBACKS` (4 hardcoded events from ledgers 3,633,850–3,649,780) that were merged into results whenever their contractId matched. These masked the getEvents regression by rendering frozen data as if live.
+**Validation**: API returns only live RPC-sourced events; no hardcoded entries visible.
+**Severity**: HIGH — CLOSED.
+
+#### Task 13.3 — Replace rootMatchesDemo with rootSynced (DONE 2026-07-17)
+**Files**: `app/api/protocol/status/route.ts`, `lib/protocol/useProtocolStatus.ts`, `components/features/treasury/TreasuryView.tsx`, `components/features/payroll/PayrollSummary.tsx`, `components/features/infrastructure/InfrastructureRoadmap.tsx`
+**Changes applied**:
+- Replaced `rootMatchesDemo` (compared live on-chain root against a stale hardcoded `expectedEmployeeRootDecimal` constant) with `rootSynced` (true when `employeeRoot !== null && employeeRoot !== "0"`)
+- The stale comparison caused a false-positive amber warning in Treasury after the workforce root was updated on-chain (live root `508569...` ≠ hardcoded `126193...`)
+- Warning now only fires when no root is set on-chain at all
+**Validation**: `curl /api/protocol/status` returns `rootSynced: true`; Playwright confirms Treasury no longer shows the false warning.
+**Severity**: HIGH — CLOSED.
+
+#### Task 13.4 — Remove redundant Protocol events table from Treasury (DONE 2026-07-17)
+**File**: `components/features/treasury/TreasuryView.tsx`
+**Changes applied**: Removed the "Protocol events" table that rendered `PAYMAGE_PROTOCOL_TRANSACTIONS` (a static hardcoded array). The Proof Ledger (`/history`) is the canonical event view — duplicating it in Treasury with stale data was confusing. Treasury now shows only treasury-specific content: balance, next payroll, budget cap, treasury address.
+**Severity**: MEDIUM — CLOSED.
+
+#### Task 13.5 — Reorder sidebar nav + add Upcoming badge (DONE 2026-07-17)
+**File**: `components/layout/Sidebar.tsx`
+**Changes applied**: Moved "Institution Setup" above "ZK KYC + Ramps" in the sidebar navigation. Added an amber "Upcoming" pill badge to the "ZK KYC + Ramps" nav item to signal it is not yet implemented.
+**Severity**: LOW — CLOSED.
+
+#### Task 13.6 — Extract shared event helpers (DONE 2026-07-17)
+**File**: `lib/protocol/events.ts` (new)
+**Changes applied**: Extracted `eventLabel()` and `txExplorerUrl()` from `TransactionHistory.tsx` into a shared module, deduplicating the logic.
+**Severity**: LOW — CLOSED.
+
+#### Task 13.7 — Deploy fixes to Vercel production (DONE 2026-07-17)
+**Changes applied**: Deployed all Phase 13 fixes to Vercel production (`paymage-vercel-server-proof-gadillacers-projects.vercel.app`). Commit `a2a7332` pushed to `origin/paymage-app-runner-prover`.
+**Validation**: Playwright verified live on production — Proof Ledger shows 11 live testnet events; Treasury shows live balance (`19,942.92 XLM`) with no false warning; nav reorder + Upcoming badge visible.
+**Severity**: BLOCKING — CLOSED.
+
+**Phase 13 validation summary** (2026-07-17):
+- `npm run lint` — clean (1 pre-existing warning in StellarProvider.tsx)
+- `npm run typecheck` — clean, exit 0
+- `npm run test` — 65 passed, 9 pre-existing failures (verified by stashing changes: identical baseline, zero regressions)
+- Vercel production build — Ready
+- Playwright E2E — Proof Ledger: 11 live events; Treasury: no false warning, no redundant table; Sidebar: correct order + Upcoming badge
