@@ -1,7 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ExternalLink, Landmark, RefreshCw } from "lucide-react";
-import { PAYMAGE_PROTOCOL_TRANSACTIONS } from "@/lib/protocol/paymage";
+import { AlertTriangle, Landmark, RefreshCw } from "lucide-react";
 import { formatXlm, formatStroopsAsXlm } from "@/lib/protocol/tokenFormat";
 import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
 
@@ -10,7 +9,7 @@ function TreasuryView() {
   const projectedPayroll = data?.payroll.nextPayrollAmount ?? 500_000;
   const balance = data?.payroll.treasuryBalance ?? null;
   const budgetCap = data?.payroll.budgetCap ?? null;
-  const hasRoot = data?.payroll.rootMatchesDemo;
+  const rootSynced = data?.payroll.rootSynced;
 
   return (
     <section aria-labelledby="treasury-heading" className="space-y-5">
@@ -42,12 +41,11 @@ function TreasuryView() {
         </div>
       )}
 
-      {!hasRoot && !isLoading && (
+      {!rootSynced && !isLoading && (
         <div role="alert" className="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
           <p className="text-sm text-amber-800">
-            The employee root does not match the PayMage demo workforce. Sync the root before
-            submitting payroll.
+            No workforce root is set on-chain. Sync the root above before submitting payroll.
           </p>
         </div>
       )}
@@ -68,54 +66,6 @@ function TreasuryView() {
             </p>
           </div>
         </div>
-      </article>
-
-      <article className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-950">Protocol events</h2>
-        </div>
-        <table className="w-full text-left">
-          <caption className="sr-only">PayMage treasury and payroll protocol events</caption>
-          <thead className="bg-slate-50">
-            <tr>
-              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Event</th>
-              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Amount</th>
-              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Status</th>
-              <th scope="col" className="px-5 py-3 text-xs font-medium uppercase text-slate-500">Tx</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {PAYMAGE_PROTOCOL_TRANSACTIONS.map((tx) => (
-              <tr key={tx.id}>
-                <td className="px-5 py-4 text-sm text-slate-900">Employee root sync</td>
-                <td className="px-5 py-4 text-sm font-medium text-slate-900">
-                  {tx.totalAmount > 0 ? formatStroopsAsXlm(tx.totalAmount) : "-"}
-                </td>
-                <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-800">
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                    {tx.status}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  {tx.txHash ? (
-                    <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${tx.txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-xs text-teal-700 hover:text-teal-900 focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-                    >
-                      {tx.txHash.slice(0, 10)}...
-                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <span className="text-sm text-slate-500">Pending</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </article>
     </section>
   );

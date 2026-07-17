@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { PayrollTransaction } from "@/types";
+import { eventLabel, txExplorerUrl } from "@/lib/protocol/events";
 
 type StatusFilter = "all" | "verified" | "pending" | "failed";
 
@@ -63,25 +64,6 @@ function downloadCsv(csv: string, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function eventLabel(tx: PayrollTransaction): string {
-  switch (tx.eventType) {
-    case "payroll_verified":
-      return "Payroll proof verified";
-    case "employee_root_updated":
-      return "Workforce root updated";
-    case "auditor_granted":
-      return "Auditor granted";
-    case "auditor_revoked":
-      return "Auditor revoked";
-    default:
-      return "Protocol event";
-  }
-}
-
-function txExplorerUrl(txHash: string): string {
-  return `https://stellar.expert/explorer/testnet/tx/${txHash}`;
 }
 
 function TransactionHistory() {

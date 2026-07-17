@@ -1,5 +1,7 @@
 import type { Company, Employee, PayrollTransaction, ViewKey } from "@/types/models";
 
+export const EVENT_LOOKBACK_LEDGERS = 9_000;
+
 export const PAYMAGE_PROTOCOL = {
   productName: "PayMage",
   network: "Stellar Testnet",

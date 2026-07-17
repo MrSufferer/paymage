@@ -20,7 +20,7 @@ export interface ProtocolStatus {
     employeeRoot: string | null;
     employeeRootHex: string | null;
     expectedEmployeeRoot: string;
-    rootMatchesDemo: boolean;
+    rootSynced: boolean;
     currentPeriod: string | null;
     activeEmployees: number;
     nextPayrollAmount: number;

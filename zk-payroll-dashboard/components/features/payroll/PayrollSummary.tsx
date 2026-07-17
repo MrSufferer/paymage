@@ -13,7 +13,7 @@ function short(value: string | null | undefined) {
 function PayrollSummary() {
   const { data, error, isLoading, refresh } = useProtocolStatus();
 
-  const rootReady = data?.payroll.rootMatchesDemo;
+  const rootReady = data?.payroll.rootSynced;
 
   return (
     <section className="space-y-5" aria-labelledby="protocol-summary-heading">

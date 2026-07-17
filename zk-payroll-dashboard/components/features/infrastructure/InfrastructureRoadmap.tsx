@@ -74,7 +74,7 @@ function InfrastructureRoadmap() {
                 <div className="flex justify-between gap-4">
                   <dt className="text-slate-500">Root ready</dt>
                   <dd className="font-medium text-slate-900">
-                    {data?.payroll.rootMatchesDemo ? "Yes" : "Needs sync"}
+                    {data?.payroll.rootSynced ? "Yes" : "Needs sync"}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">

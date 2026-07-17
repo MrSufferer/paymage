@@ -3,6 +3,7 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { Server, Api as RpcApi } from "@stellar/stellar-sdk/rpc";
 import { errorResponse, successResponse } from "@/lib/api/response";
 import { getServerEnv } from "@/lib/env";
+import { EVENT_LOOKBACK_LEDGERS } from "@/lib/protocol/paymage";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     const server = new Server(env.NEXT_PUBLIC_SOROBAN_RPC_URL);
     const source = await server.getAccount(env.ADMIN_PUBLIC_KEY);
     const latest = await server.getLatestLedger();
-    const startLedger = Math.max(1, latest.sequence - 100_000);
+    const startLedger = Math.max(1, latest.sequence - EVENT_LOOKBACK_LEDGERS);
     const response = await server.getEvents({
       startLedger,
       filters: [

@@ -123,7 +123,7 @@ export async function GET() {
         ? BigInt(employeeRootDecimal).toString(16).padStart(64, "0")
         : null,
       expectedEmployeeRoot: PAYMAGE_PROTOCOL.expectedEmployeeRoot,
-      rootMatchesDemo: employeeRootDecimal === PAYMAGE_PROTOCOL.expectedEmployeeRootDecimal,
+      rootSynced: employeeRootDecimal !== null && employeeRootDecimal !== "0",
       currentPeriod: currentPeriodValue,
       activeEmployees: latestPeriodEmployeeCount ?? PAYMAGE_TESTNET_EMPLOYEES.length,
       nextPayrollAmount: latestPeriodAmount ?? PAYMAGE_TESTNET_EMPLOYEES.reduce(

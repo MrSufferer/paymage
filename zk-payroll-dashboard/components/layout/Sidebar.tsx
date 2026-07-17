@@ -20,8 +20,8 @@ const navItems = [
   { href: "/history", label: "Proof Ledger", icon: History },
   { href: "/treasury", label: "Treasury", icon: Landmark },
   { href: "/compliance", label: "Compliance", icon: Shield },
-  { href: "/infrastructure", label: "ZK KYC + Ramps", icon: BadgeCheck },
   { href: "/setup", label: "Institution Setup", icon: Building2 },
+  { href: "/infrastructure", label: "ZK KYC + Ramps", icon: BadgeCheck, upcoming: true },
 ] as const;
 
 function Sidebar() {
@@ -68,6 +68,11 @@ function Sidebar() {
                 aria-hidden="true"
               />
               {item.label}
+              {"upcoming" in item && item.upcoming && (
+                <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                  Upcoming
+                </span>
+              )}
             </a>
           );
         })}
