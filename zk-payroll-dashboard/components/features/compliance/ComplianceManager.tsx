@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Key,
   Plus,
@@ -13,28 +13,28 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Unlock,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
 import { useViewKeyStore } from "@/stores/viewKeys";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
+import { useStellar } from "@/components/providers/StellarProvider";
 import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
 import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
+import { PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID } from "@/lib/protocol/paymage";
+import { formatXlm, formatStroopsAsXlm } from "@/lib/protocol/tokenFormat";
+import {
+  decryptSalaryBlob,
+  deriveViewKey,
+  deserializeEncryptedPayload,
+} from "@/lib/zk/encryption";
 import type { ViewKey } from "@/types";
 
 function isStellarAddress(address: string): boolean {
   return /^G[A-Z2-7]{55}$/.test(address);
-}
-
-function generateKeyId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "vk_";
-  for (let i = 0; i < 12; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
 }
 
 function shortAddress(value: string | null | undefined): string {
@@ -43,9 +43,82 @@ function shortAddress(value: string | null | undefined): string {
   return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
 
+interface AuditorStatus {
+  address: string;
+  isAuditor: boolean;
+  encryptedViewKeyHex: string | null;
+  contract: string;
+  network: "TESTNET" | "PUBLIC";
+  updatedAt: string;
+}
+
+interface GrantedAuditorKey {
+  address: string;
+  status: "active" | "revoked";
+  eventType: "auditor_granted" | "auditor_revoked";
+  isAuditor: boolean;
+  encryptedViewKeyHex: string | null;
+  keyId: string | null;
+  latestTxHash: string;
+  latestLedger: number;
+  latestEventAt: string;
+}
+
+interface AuditorTransactionRow {
+  proof?: string;
+  eventType?: "auditor_granted" | "auditor_revoked" | string;
+  txHash?: string;
+  ledger?: number;
+  createdAt?: string;
+  timestamp?: string;
+}
+
+interface DisclosureCommitment {
+  commitmentId: string;
+  ipfsCid: string;
+  gatewayUrl: string | null;
+}
+
+interface DisclosurePacket {
+  address: string;
+  contract: string;
+  currentPeriod: number;
+  period: number;
+  encryptedViewKeyHex: string | null;
+  payroll: {
+    commitmentRoot: string;
+    commitmentRootHex: string;
+    totalAmount: string;
+    employeeCount: number;
+  } | null;
+  commitments: DisclosureCommitment[];
+  updatedAt: string;
+}
+
+interface DecryptedDisclosureRow {
+  commitmentId: string;
+  ipfsCid: string;
+  employeeId: string;
+  salaryAmount: string;
+  salt: string;
+}
+
+function hexToUtf8(hex: string): string {
+  const bytes = new Uint8Array(hex.match(/.{1,2}/g)?.map((b) => parseInt(b, 16)) ?? []);
+  return new TextDecoder().decode(bytes);
+}
+
+function disclosureKeyIdFromEnvelope(hex: string | null): string | null {
+  if (!hex) return null;
+  const value = hexToUtf8(hex);
+  if (value.startsWith("enc:")) return value.slice(4);
+  return null;
+}
+
 function ComplianceManager() {
   const { viewKeys, addViewKey, revokeViewKey } = useViewKeyStore();
   const { publicKey, isConnected, network } = useWalletStore();
+  const { signTx } = useStellar();
   const { data: protocol, error: protocolError, isLoading: isProtocolLoading, refresh } = useProtocolStatus();
   const [showForm, setShowForm] = useState(false);
   const [isContractCall, setIsContractCall] = useState(false);
@@ -57,6 +130,214 @@ function ComplianceManager() {
     scope: "read-only" as "read-only" | "full-audit",
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [auditorStatus, setAuditorStatus] = useState<AuditorStatus | null>(null);
+  const [auditorStatusError, setAuditorStatusError] = useState<string | null>(null);
+  const [isAuditorStatusLoading, setIsAuditorStatusLoading] = useState(false);
+  const [grantedAuditors, setGrantedAuditors] = useState<GrantedAuditorKey[]>([]);
+  const [grantedAuditorsError, setGrantedAuditorsError] = useState<string | null>(null);
+  const [isGrantedAuditorsLoading, setIsGrantedAuditorsLoading] = useState(false);
+  const [disclosurePacket, setDisclosurePacket] = useState<DisclosurePacket | null>(null);
+  const [disclosureRows, setDisclosureRows] = useState<DecryptedDisclosureRow[]>([]);
+  const [disclosureError, setDisclosureError] = useState<string | null>(null);
+  const [isDisclosureLoading, setIsDisclosureLoading] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [isDelegatedGranting, setIsDelegatedGranting] = useState(false);
+
+  const loadGrantedAuditors = useCallback(async () => {
+    setIsGrantedAuditorsLoading(true);
+    setGrantedAuditorsError(null);
+    try {
+      const response = await fetch("/api/transactions?limit=100", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        throw new Error(body?.error?.message ?? `Transactions returned ${response.status}`);
+      }
+
+      const latestByAddress = new Map<string, AuditorTransactionRow>();
+      for (const row of (body.data ?? []) as AuditorTransactionRow[]) {
+        if (row.eventType !== "auditor_granted" && row.eventType !== "auditor_revoked") {
+          continue;
+        }
+        if (!row.proof || !isStellarAddress(row.proof) || !row.txHash || !row.ledger) {
+          continue;
+        }
+        const existing = latestByAddress.get(row.proof);
+        const eventAt = row.createdAt ?? row.timestamp ?? "";
+        const existingAt = existing?.createdAt ?? existing?.timestamp ?? "";
+        if (!existing || eventAt > existingAt) {
+          latestByAddress.set(row.proof, row);
+        }
+      }
+
+      const auditors = await Promise.all(
+        Array.from(latestByAddress.entries()).map(async ([address, row]) => {
+          const statusResponse = await fetch(
+            `/api/compliance/auditor/status?address=${encodeURIComponent(address)}`,
+            { cache: "no-store" },
+          );
+          const status = statusResponse.ok
+            ? ((await statusResponse.json()) as AuditorStatus)
+            : null;
+          return {
+            address,
+            status: status?.isAuditor ? "active" : "revoked",
+            eventType: row.eventType as "auditor_granted" | "auditor_revoked",
+            isAuditor: Boolean(status?.isAuditor),
+            encryptedViewKeyHex: status?.encryptedViewKeyHex ?? null,
+            keyId: disclosureKeyIdFromEnvelope(status?.encryptedViewKeyHex ?? null),
+            latestTxHash: row.txHash!,
+            latestLedger: row.ledger!,
+            latestEventAt: row.createdAt ?? row.timestamp ?? new Date(0).toISOString(),
+          } satisfies GrantedAuditorKey;
+        }),
+      );
+
+      setGrantedAuditors(auditors.sort((a, b) => b.latestEventAt.localeCompare(a.latestEventAt)));
+    } catch (err) {
+      setGrantedAuditors([]);
+      setGrantedAuditorsError(
+        err instanceof Error ? err.message : "Failed to load auditor grants",
+      );
+    } finally {
+      setIsGrantedAuditorsLoading(false);
+    }
+  }, []);
+
+  const loadAuditorStatus = useCallback(async () => {
+    if (!publicKey) {
+      setAuditorStatus(null);
+      setAuditorStatusError(null);
+      setIsAuditorStatusLoading(false);
+      return;
+    }
+
+    setIsAuditorStatusLoading(true);
+    setAuditorStatusError(null);
+    try {
+      const response = await fetch(
+        `/api/compliance/auditor/status?address=${encodeURIComponent(publicKey)}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? `Auditor status returned ${response.status}`);
+      }
+      setAuditorStatus((await response.json()) as AuditorStatus);
+    } catch (err) {
+      setAuditorStatus(null);
+      setAuditorStatusError(
+        err instanceof Error ? err.message : "Failed to load auditor status",
+      );
+    } finally {
+      setIsAuditorStatusLoading(false);
+    }
+  }, [publicKey]);
+
+  useEffect(() => {
+    loadAuditorStatus();
+  }, [loadAuditorStatus]);
+
+  useEffect(() => {
+    loadGrantedAuditors();
+  }, [loadGrantedAuditors]);
+
+  useEffect(() => {
+    setDisclosurePacket(null);
+    setDisclosureRows([]);
+    setDisclosureError(null);
+  }, [publicKey]);
+
+  const loadDisclosurePacket = useCallback(async () => {
+    if (!publicKey) {
+      setDisclosureError("Connect an auditor wallet first.");
+      return;
+    }
+
+    setIsDisclosureLoading(true);
+    setDisclosureError(null);
+    setDisclosureRows([]);
+    try {
+      const response = await fetch(
+        `/api/compliance/disclosure?address=${encodeURIComponent(publicKey)}`,
+        { cache: "no-store" },
+      );
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        throw new Error(body?.error?.message ?? `Disclosure returned ${response.status}`);
+      }
+      setDisclosurePacket(body.data as DisclosurePacket);
+    } catch (err) {
+      setDisclosurePacket(null);
+      setDisclosureError(
+        err instanceof Error ? err.message : "Failed to load disclosure packet",
+      );
+    } finally {
+      setIsDisclosureLoading(false);
+    }
+  }, [publicKey]);
+
+  const decryptDisclosurePacket = useCallback(async () => {
+    if (!auditorStatus?.isAuditor) {
+      setDisclosureRows([]);
+      setDisclosureError(
+        "Connected wallet is not an active payroll auditor on Stellar testnet.",
+      );
+      return;
+    }
+
+    if (!disclosurePacket) {
+      setDisclosureError("Load a disclosure packet first.");
+      return;
+    }
+
+    const keyId = disclosureKeyIdFromEnvelope(disclosurePacket.encryptedViewKeyHex);
+    if (!keyId) {
+      setDisclosureError("Auditor view-key envelope is missing or malformed.");
+      return;
+    }
+
+    setIsDecrypting(true);
+    setDisclosureError(null);
+    try {
+      const viewKey = await deriveViewKey(keyId);
+      const rows: DecryptedDisclosureRow[] = [];
+      for (const commitment of disclosurePacket.commitments) {
+        const response = await fetch(
+          `/api/ipfs/fetch?cid=${encodeURIComponent(commitment.ipfsCid)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          throw new Error(`Failed to fetch encrypted payload ${commitment.ipfsCid}`);
+        }
+        const payload = deserializeEncryptedPayload(
+          new Uint8Array(await response.arrayBuffer()),
+        );
+        const decrypted = await decryptSalaryBlob(payload, viewKey);
+        rows.push({
+          commitmentId: commitment.commitmentId,
+          ipfsCid: commitment.ipfsCid,
+          ...decrypted,
+        });
+      }
+      setDisclosureRows(rows);
+      toast.success("Disclosure packet decrypted", {
+        description: `${rows.length} encrypted payroll records opened for auditor review.`,
+      });
+    } catch (err) {
+      setDisclosureRows([]);
+      const message =
+        err instanceof Error && err.name === "OperationError"
+          ? "Failed to decrypt payroll disclosure. The connected auditor key does not match the encrypted IPFS payload for this payroll period."
+          : err instanceof Error
+            ? err.message
+            : "Failed to decrypt disclosure packet";
+      setDisclosureError(
+        message,
+      );
+    } finally {
+      setIsDecrypting(false);
+    }
+  }, [auditorStatus?.isAuditor, disclosurePacket]);
 
   const callContract = useCallback(
     async (method: string, args: StellarSdk.xdr.ScVal[]) => {
@@ -106,6 +387,12 @@ function ComplianceManager() {
   );
 
   const handleGenerate = async () => {
+    if (!isPayrollAdmin) {
+      toast.error("Payroll admin wallet required", {
+        description: `Switch Freighter to ${shortAddress(protocol?.payroll.admin)} to grant auditor access.`,
+      });
+      return;
+    }
     if (!form.auditorAddress || !isStellarAddress(form.auditorAddress)) {
       toast.error("Valid Stellar auditor address required");
       return;
@@ -113,15 +400,16 @@ function ComplianceManager() {
     setIsContractCall(true);
     try {
       const auditorAddr = StellarSdk.Address.fromString(form.auditorAddress).toScVal();
+      const keyId = PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID;
       const encryptedKey = StellarSdk.nativeToScVal(
-        `enc:${generateKeyId()}`,
+        `enc:${keyId}`,
         { type: "bytes" },
       );
       await callContract("set_view_key_for_auditor", [auditorAddr, encryptedKey]);
 
       const newKey: ViewKey = {
         id: `vk_${Date.now()}`,
-        keyId: generateKeyId(),
+        keyId,
         auditorName: form.auditorName,
         auditorOrg: form.auditorOrg,
         auditorAddress: form.auditorAddress,
@@ -134,6 +422,7 @@ function ComplianceManager() {
       addViewKey(newKey);
       setForm({ auditorName: "", auditorOrg: "", auditorAddress: "", scope: "read-only" });
       setShowForm(false);
+      await Promise.all([refresh(), loadAuditorStatus(), loadGrantedAuditors()]);
       toast.success("View key generated", {
         description: "Auditor access granted on-chain.",
       });
@@ -146,7 +435,103 @@ function ComplianceManager() {
     }
   };
 
+  const ensureDelegatedSession = useCallback(async () => {
+    if (!publicKey || !isConnected) {
+      throw new Error("Connect Freighter first.");
+    }
+
+    const challengeResponse = await fetch(
+      `/api/auth/challenge?publicKey=${encodeURIComponent(publicKey)}`,
+      { cache: "no-store" },
+    );
+    const challenge = await challengeResponse.json();
+    if (!challengeResponse.ok) {
+      throw new Error(challenge.error ?? `Challenge returned ${challengeResponse.status}`);
+    }
+
+    const signedXdr = await signTx(challenge.txXdr);
+    if (!signedXdr) {
+      throw new Error("Wallet challenge signing was cancelled.");
+    }
+
+    const sessionResponse = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        publicKey,
+        token: challenge.token,
+        signedXdr,
+      }),
+    });
+    const sessionBody = await sessionResponse.json();
+    if (!sessionResponse.ok) {
+      throw new Error(sessionBody.error ?? `Session returned ${sessionResponse.status}`);
+    }
+  }, [isConnected, publicKey, signTx]);
+
+  const handleGrantConnectedAuditor = useCallback(async () => {
+    if (!publicKey || !isConnected) {
+      toast.error("Connect Freighter first");
+      return;
+    }
+
+    setIsDelegatedGranting(true);
+    try {
+      await ensureDelegatedSession();
+      const response = await fetch("/api/admin/auditor", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ auditor: publicKey }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        throw new Error(body.error ?? `Delegated auditor grant returned ${response.status}`);
+      }
+
+      const newKey: ViewKey = {
+        id: `vk_${Date.now()}`,
+        keyId: body.keyId ?? PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID,
+        auditorName: "Connected auditor",
+        auditorOrg: "PayMage testnet",
+        auditorAddress: publicKey,
+        scope: "full-audit",
+        grantedBy: protocol?.payroll.admin ?? "Delegated admin",
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        isActive: true,
+      };
+      addViewKey(newKey);
+      await Promise.all([refresh(), loadAuditorStatus(), loadGrantedAuditors()]);
+      toast.success("Connected wallet granted as auditor", {
+        description: `Tx: ${shortAddress(body.txHash)}`,
+      });
+    } catch (err) {
+      toast.error("Delegated auditor grant failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setIsDelegatedGranting(false);
+    }
+  }, [
+    addViewKey,
+    ensureDelegatedSession,
+    isConnected,
+    loadAuditorStatus,
+    loadGrantedAuditors,
+    protocol?.payroll.admin,
+    publicKey,
+    refresh,
+  ]);
+
   const handleRevoke = async (id: string) => {
+    if (!isPayrollAdmin) {
+      toast.error("Payroll admin wallet required", {
+        description: `Switch Freighter to ${shortAddress(protocol?.payroll.admin)} to revoke auditor access.`,
+      });
+      return;
+    }
     const key = viewKeys.find((k) => k.id === id);
     if (!key?.auditorAddress) {
       revokeViewKey(id);
@@ -159,6 +544,7 @@ function ComplianceManager() {
       await callContract("revoke_auditor", [auditorAddr]);
 
       revokeViewKey(id);
+      await Promise.all([refresh(), loadAuditorStatus(), loadGrantedAuditors()]);
       toast.success("View key revoked", {
         description: "Auditor access revoked on-chain.",
       });
@@ -192,10 +578,23 @@ function ComplianceManager() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const copyConnectedAuditorKey = async () => {
+    if (!auditorStatus?.encryptedViewKeyHex) return;
+    await navigator.clipboard.writeText(auditorStatus.encryptedViewKeyHex);
+    toast.success("Copied encrypted view key", {
+      description: "Auditor disclosure key copied to clipboard.",
+    });
+  };
+
   const activeKeys = viewKeys.filter((k) => k.isActive);
   const inactiveKeys = viewKeys.filter((k) => !k.isActive);
-  const rootStatus = protocol?.payroll.rootMatchesDemo ? "Synced" : "Needs sync";
-  const auditorActionReady = Boolean(protocol?.contracts.payroll && isConnected);
+  const rootStatus = protocol?.payroll.employeeRootHex ? "Live root" : "Not set";
+  const isPayrollAdmin = Boolean(
+    publicKey &&
+      protocol?.payroll.admin &&
+      publicKey === protocol.payroll.admin,
+  );
+  const auditorActionReady = Boolean(protocol?.contracts.payroll && isPayrollAdmin);
 
   return (
     <section aria-labelledby="compliance-heading" className="space-y-6">
@@ -209,13 +608,22 @@ function ComplianceManager() {
           </h2>
           <p className="text-sm text-gray-600 mt-1">
             Testnet compliance console for auditor disclosure, payroll root
-            checks, and the Vietnam-first ZK KYC rollout.
+            checks, and encrypted payroll review.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          onClick={() => {
+            if (!isPayrollAdmin) {
+              toast.error("Payroll admin wallet required", {
+                description: `Switch Freighter to ${shortAddress(protocol?.payroll.admin)} to grant auditor access.`,
+              });
+              return;
+            }
+            setShowForm(!showForm);
+          }}
+          disabled={!isPayrollAdmin}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-teal-700 text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Grant Auditor View Key
@@ -235,7 +643,7 @@ function ComplianceManager() {
         <article className="rounded-md border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium uppercase text-slate-500">Payroll root</p>
           <p className={`mt-2 text-lg font-semibold ${
-            protocol?.payroll.rootMatchesDemo ? "text-teal-700" : "text-red-700"
+            protocol?.payroll.employeeRootHex ? "text-teal-700" : "text-red-700"
           }`}>
             {isProtocolLoading ? "Loading" : rootStatus}
           </p>
@@ -249,16 +657,16 @@ function ComplianceManager() {
             {isProtocolLoading ? "Loading" : `#${protocol?.payroll.currentPeriod ?? "?"}`}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Next amount {protocol?.payroll.nextPayrollAmount.toLocaleString() ?? "-"} PAYME units
+            Next amount {formatStroopsAsXlm(protocol?.payroll.nextPayrollAmount)}
           </p>
         </article>
         <article className="rounded-md border border-slate-200 bg-white p-4">
           <p className="text-xs font-medium uppercase text-slate-500">Treasury</p>
           <p className="mt-2 text-lg font-semibold text-slate-950">
-            {isProtocolLoading ? "Loading" : `${protocol?.payroll.treasuryBalance ?? "0"} PAYME`}
+            {isProtocolLoading ? "Loading" : formatXlm(protocol?.payroll.treasuryBalance)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Cap {protocol?.payroll.budgetCap ?? "-"} PAYME
+            Cap {formatXlm(protocol?.payroll.budgetCap)}
           </p>
         </article>
       </div>
@@ -277,7 +685,10 @@ function ComplianceManager() {
           </div>
           <button
             type="button"
-            onClick={refresh}
+            onClick={() => {
+              refresh();
+              loadGrantedAuditors();
+            }}
             className="inline-flex items-center justify-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Refresh
@@ -301,6 +712,324 @@ function ComplianceManager() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-950">Granted auditor keys</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Rows are derived from Stellar testnet grant and revoke events, then each address
+              is rechecked against the payroll contract before being marked active.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadGrantedAuditors}
+            className="inline-flex items-center justify-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {isGrantedAuditorsLoading ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : null}
+            Refresh keys
+          </button>
+        </div>
+
+        {grantedAuditorsError ? (
+          <p className="mt-3 text-sm text-red-700">{grantedAuditorsError}</p>
+        ) : null}
+
+        {isGrantedAuditorsLoading && grantedAuditors.length === 0 ? (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            Loading auditor grants from Stellar testnet.
+          </div>
+        ) : grantedAuditors.length > 0 ? (
+          <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
+            <div className="grid grid-cols-[1.4fr_0.7fr_1.1fr_0.8fr_0.9fr] gap-3 border-b bg-slate-50 px-3 py-2 text-xs font-medium uppercase text-slate-500">
+              <span>Auditor wallet</span>
+              <span>Status</span>
+              <span>Disclosure key</span>
+              <span>Latest tx</span>
+              <span>Last event</span>
+            </div>
+            {grantedAuditors.map((auditor) => (
+              <div
+                key={auditor.address}
+                className="grid grid-cols-[1.4fr_0.7fr_1.1fr_0.8fr_0.9fr] gap-3 border-b px-3 py-2 text-xs last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-slate-900">{auditor.address}</p>
+                  {auditor.address === publicKey ? (
+                    <p className="mt-0.5 text-teal-700">Connected wallet</p>
+                  ) : null}
+                </div>
+                <span
+                  className={`h-fit w-fit rounded-md px-2 py-1 font-medium ${
+                    auditor.isAuditor
+                      ? "bg-teal-50 text-teal-800"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {auditor.isAuditor ? "Active" : "Revoked"}
+                </span>
+                <span className="truncate font-mono text-slate-700">
+                  {auditor.keyId ?? shortAddress(auditor.encryptedViewKeyHex)}
+                </span>
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${auditor.latestTxHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate font-mono text-teal-700 hover:text-teal-900"
+                >
+                  {shortAddress(auditor.latestTxHash)}
+                </a>
+                <span className="text-slate-700">
+                  {new Date(auditor.latestEventAt).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            No auditor grant events were found for this payroll contract in the indexed
+            Stellar testnet ledger range.
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-950">Connected auditor role</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              This reads the payroll contract disclosure state for the connected Freighter wallet.
+            </p>
+          </div>
+          <div
+            className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+              auditorStatus?.isAuditor
+                ? "bg-teal-50 text-teal-800"
+                : isPayrollAdmin
+                  ? "bg-slate-100 text-slate-800"
+                  : "bg-amber-50 text-amber-800"
+            }`}
+          >
+            {isAuditorStatusLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking
+              </>
+            ) : auditorStatus?.isAuditor ? (
+              "Auditor active"
+            ) : isPayrollAdmin ? (
+              "Payroll admin"
+            ) : isConnected ? (
+              "No auditor grant"
+            ) : (
+              "Wallet not connected"
+            )}
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Connected wallet</p>
+            <p className="mt-1 font-mono text-slate-900">{shortAddress(publicKey)}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Required admin</p>
+            <p className="mt-1 font-mono text-slate-900">{shortAddress(protocol?.payroll.admin)}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Auditor contract state</p>
+            <p className="mt-1 text-slate-900">
+              {isAuditorStatusLoading
+                ? "Checking"
+                : auditorStatus?.isAuditor
+                  ? "Granted on testnet"
+                  : "Not granted on testnet"}
+            </p>
+          </div>
+        </div>
+        {auditorStatusError ? (
+          <p className="mt-3 text-sm text-red-700">{auditorStatusError}</p>
+        ) : null}
+        {isConnected && !auditorStatus?.isAuditor ? (
+          <div className="mt-4 rounded-md border border-teal-100 bg-teal-50 p-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-medium text-teal-950">
+                  Testnet shortcut: grant this connected wallet as auditor
+                </p>
+                <p className="mt-1 text-sm text-teal-800">
+                  The wallet signs a Freighter challenge; Vercel submits the on-chain
+                  auditor grant with the deployed admin signer.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGrantConnectedAuditor}
+                disabled={isDelegatedGranting}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+              >
+                {isDelegatedGranting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Key className="h-4 w-4" />
+                )}
+                Grant connected wallet
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {auditorStatus?.isAuditor && auditorStatus.encryptedViewKeyHex ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-md border border-teal-100 bg-teal-50 p-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-teal-800">Encrypted disclosure key</p>
+              <p className="mt-1 truncate font-mono text-sm text-teal-950">
+                {auditorStatus.encryptedViewKeyHex}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={copyConnectedAuditorKey}
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100"
+            >
+              <Copy className="h-4 w-4" />
+              Copy key
+            </button>
+          </div>
+        ) : null}
+        {isPayrollAdmin && !auditorStatus?.isAuditor ? (
+          <p className="mt-3 text-sm text-slate-600">
+            This wallet can manage auditor grants. To test the auditor persona, switch
+            Freighter to a wallet that has been granted a view key.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-950">
+              Auditor disclosure packet
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Active auditors can read the latest payroll period from the contract,
+              fetch encrypted salary blobs from IPFS, and decrypt them in this browser.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={loadDisclosurePacket}
+              disabled={!auditorStatus?.isAuditor || isDisclosureLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isDisclosureLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+              Load packet
+            </button>
+            <button
+              type="button"
+              onClick={decryptDisclosurePacket}
+              disabled={
+                !auditorStatus?.isAuditor ||
+                !disclosurePacket ||
+                disclosurePacket.commitments.length === 0 ||
+                isDecrypting
+              }
+              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+            >
+              {isDecrypting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlock className="h-4 w-4" />}
+              Decrypt payroll
+            </button>
+          </div>
+        </div>
+
+        {disclosureError ? (
+          <p className="mt-3 text-sm text-red-700">{disclosureError}</p>
+        ) : null}
+
+        {!auditorStatus?.isAuditor && !disclosurePacket ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Connect a granted auditor wallet to unlock this panel. Admin wallets can grant
+            auditors, but they do not automatically decrypt payroll disclosure packets.
+          </div>
+        ) : disclosurePacket?.payroll ? (
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase text-slate-500">Period</p>
+                <p className="mt-1 font-semibold text-slate-950">#{disclosurePacket.period}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-slate-500">Employees</p>
+                <p className="mt-1 font-semibold text-slate-950">
+                  {disclosurePacket.payroll.employeeCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-slate-500">Aggregate amount</p>
+                <p className="mt-1 font-semibold text-slate-950">
+                  {formatStroopsAsXlm(disclosurePacket.payroll.totalAmount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-slate-500">Encrypted blobs</p>
+                <p className="mt-1 font-semibold text-slate-950">
+                  {disclosurePacket.commitments.length}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200">
+              <div className="grid grid-cols-2 gap-3 border-b bg-slate-50 px-3 py-2 text-xs font-medium uppercase text-slate-500">
+                <span>Commitment</span>
+                <span>IPFS CID</span>
+              </div>
+              {disclosurePacket.commitments.map((commitment) => (
+                <div
+                  key={commitment.commitmentId}
+                  className="grid grid-cols-2 gap-3 border-b px-3 py-2 text-xs last:border-b-0"
+                >
+                  <span className="truncate font-mono text-slate-700">
+                    {commitment.commitmentId}
+                  </span>
+                  <span className="truncate font-mono text-slate-700">
+                    {commitment.ipfsCid}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : disclosurePacket ? (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            No payroll period has been submitted on this contract yet. Submit a private payroll
+            run first, then reload this packet.
+          </div>
+        ) : null}
+
+        {disclosureRows.length > 0 ? (
+          <div className="mt-4 rounded-md border border-teal-100 bg-teal-50">
+            <div className="grid grid-cols-4 gap-3 border-b border-teal-100 px-3 py-2 text-xs font-medium uppercase text-teal-800">
+              <span>Commitment</span>
+              <span>Employee field id</span>
+              <span>Salary amount</span>
+              <span>Salt</span>
+            </div>
+            {disclosureRows.map((row) => (
+              <div
+                key={row.commitmentId}
+                className="grid grid-cols-4 gap-3 border-b border-teal-100 px-3 py-2 text-xs last:border-b-0"
+              >
+                <span className="truncate font-mono text-teal-950">{row.commitmentId}</span>
+                <span className="truncate font-mono text-teal-950">{row.employeeId}</span>
+                <span className="font-semibold text-teal-950">
+                  {formatStroopsAsXlm(row.salaryAmount)}
+                </span>
+                <span className="truncate font-mono text-teal-950">{row.salt}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -411,8 +1140,8 @@ function ComplianceManager() {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isContractCall || !form.auditorName || !form.auditorOrg || !form.auditorAddress}
-              className="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors inline-flex items-center gap-1.5"
+              disabled={isContractCall || !isPayrollAdmin || !form.auditorName || !form.auditorOrg || !form.auditorAddress}
+              className="px-4 py-2 rounded-md text-sm font-medium bg-teal-700 text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 transition-colors inline-flex items-center gap-1.5"
             >
               {isContractCall ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Generate
@@ -461,34 +1190,10 @@ function ComplianceManager() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <article className="rounded-md border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-950">ZK KYC</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Upcoming attestations prove employee eligibility and institutional onboarding
-            without placing identity documents on-chain.
-          </p>
-        </article>
-        <article className="rounded-md border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-950">Vietnam compliance</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            First target corridor: Vietnam employer payroll review, local exports, and
-            auditor disclosure packets.
-          </p>
-        </article>
-        <article className="rounded-md border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-950">Global payroll layer</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Policy adapters, corridor metadata, and selective disclosure controls expand
-            the same protocol to additional jurisdictions.
-          </p>
-        </article>
-      </div>
-
       {!auditorActionReady && (
         <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          Connect a Stellar Testnet wallet to grant or revoke auditor access. Judges can still
-          verify the live protocol contracts and payroll readiness above without signing.
+          Connect the payroll admin wallet to grant or revoke auditor access. Judges can still
+          verify auditor status, live protocol contracts, and payroll readiness above without signing.
         </div>
       )}
 

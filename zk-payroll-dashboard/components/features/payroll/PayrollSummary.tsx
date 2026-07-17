@@ -1,14 +1,8 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { formatXlm, formatStroopsAsXlm } from "@/lib/protocol/tokenFormat";
 import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
-
-function formatNumber(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return "Unavailable";
-  const numeric = typeof value === "number" ? value : Number(value);
-  if (Number.isFinite(numeric)) return numeric.toLocaleString();
-  return String(value);
-}
 
 function short(value: string | null | undefined) {
   if (!value) return "Not configured";
@@ -54,7 +48,7 @@ function PayrollSummary() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <MetricCard
           label="Payroll batch"
-          value={isLoading ? "Loading" : formatNumber(data?.payroll.nextPayrollAmount)}
+          value={isLoading ? "Loading" : formatStroopsAsXlm(data?.payroll.nextPayrollAmount)}
           detail={`${data?.payroll.activeEmployees ?? 10} employees in root`}
         />
         <MetricCard
@@ -64,12 +58,12 @@ function PayrollSummary() {
         />
         <MetricCard
           label="Treasury token"
-          value={isLoading ? "Loading" : `${formatNumber(data?.payroll.treasuryBalance)} PAYME`}
-          detail="SAC balance of admin treasury"
+          value={isLoading ? "Loading" : formatXlm(data?.payroll.treasuryBalance)}
+          detail="Native token SAC balance"
         />
         <MetricCard
           label="Budget cap"
-          value={isLoading ? "Loading" : `${formatNumber(data?.payroll.budgetCap)} PAYME`}
+          value={isLoading ? "Loading" : formatXlm(data?.payroll.budgetCap)}
           detail="On-chain payroll policy"
         />
       </div>

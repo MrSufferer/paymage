@@ -57,10 +57,11 @@ export async function employeeIdToFieldElement(employeeId: string): Promise<stri
 export async function employeeSaltToFieldElement(
   employeeId: string,
   salary: number,
+  commitmentNonce = "paymage-demo-v1",
 ): Promise<string> {
   const digest = await getCrypto().subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(`zk-payroll:salary-salt:${employeeId}:${salary}`),
+    new TextEncoder().encode(`zk-payroll:salary-salt:${commitmentNonce}:${employeeId}:${salary}`),
   );
   return (bytesToBigInt(new Uint8Array(digest)) % BN254_FR_MODULUS).toString();
 }
@@ -68,12 +69,13 @@ export async function employeeSaltToFieldElement(
 export async function buildPayrollSlots(
   employees: PayrollEmployeeInput[],
   saltForIndex?: (index: number) => bigint,
+  commitmentNonce = "paymage-demo-v1",
 ): Promise<PayrollSlot[]> {
   return Promise.all(
     employees.map(async (employee, index) => {
       const salt = saltForIndex
         ? saltForIndex(index).toString()
-        : await employeeSaltToFieldElement(employee.id, employee.salary);
+        : await employeeSaltToFieldElement(employee.id, employee.salary, commitmentNonce);
 
       return {
         sourceEmployeeId: employee.id,

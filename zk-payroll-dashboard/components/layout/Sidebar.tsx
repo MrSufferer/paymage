@@ -20,7 +20,7 @@ const navItems = [
   { href: "/history", label: "Proof Ledger", icon: History },
   { href: "/treasury", label: "Treasury", icon: Landmark },
   { href: "/compliance", label: "Compliance", icon: Shield },
-  { href: "/infrastructure", label: "ZK KYC", icon: BadgeCheck },
+  { href: "/infrastructure", label: "ZK KYC + Ramps", icon: BadgeCheck },
   { href: "/setup", label: "Institution Setup", icon: Building2 },
 ] as const;
 

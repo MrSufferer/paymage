@@ -94,8 +94,13 @@ const PUBLIC_PATHS = [
   '/login',
   '/api/health',
   '/api/protocol/status',
+  '/api/transactions',
+  '/api/compliance/auditor/status',
+  '/api/compliance/auditors',
+  '/api/compliance/disclosure',
   '/api/csp-report',
   '/api/ipfs/upload',
+  '/api/ipfs/fetch',
 ];
 const PUBLIC_PREFIXES = ['/api/auth/'];
 const PROTECTED_PREFIXES: string[] = [];

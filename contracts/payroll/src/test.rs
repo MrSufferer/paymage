@@ -392,19 +392,18 @@ fn test_run_payroll_rejects_non_canonical_input() {
     assert!(result.is_err());
 }
 
-/// T2.10: Unauthorized caller → NotAuthorized.
+/// T2.10: Any connected wallet can submit a valid payroll proof.
 #[test]
-fn test_run_payroll_rejects_unauthorized_caller() {
+fn test_run_payroll_accepts_connected_wallet_submitter() {
     let env = test_env();
-    let (_admin, _contract_addr, client) = register_payroll(&env);
+    let (_admin, _contract_addr, _verifier, client) = register_with_mock_verifier(&env);
 
     let proof = mk_mock_groth16_proof(&env);
     let public_inputs = default_public_inputs(&env, 42, 500_000, 1);
     let ipfs_cids: Vec<(U256, Bytes)> = Vec::new(&env);
 
-    // Call without setting up mock_auths — admin (MockAuthContract) won't authorize
-    let result = client.try_run_payroll(&proof, &public_inputs, &ipfs_cids);
-    assert!(result.is_err());
+    client.run_payroll(&proof, &public_inputs, &ipfs_cids);
+    assert_eq!(client.get_current_period(), 1);
 }
 
 /// T2.11: Amount bound to proof — no separate caller-supplied amount arg.

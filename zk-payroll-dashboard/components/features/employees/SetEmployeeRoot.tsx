@@ -5,19 +5,20 @@ import { TreePine, Loader2, CheckCircle, AlertCircle, RefreshCw } from "lucide-r
 import { toast } from "sonner";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
-import { useEmployeeStore } from "@/stores/employees";
-import { useCompanyStore } from "@/stores/company";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
+import { useEmployeeStore } from "@/stores/employees";
+import { useStellar } from "@/components/providers/StellarProvider";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
 import { buildPayrollSlots } from "@/lib/zk/payrollInputs";
-import { PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
+import { PAYMAGE_PROTOCOL, PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
 import { submitAndConfirmSorobanTransaction } from "@/lib/stellar/transactions";
 import { env } from "@/lib/env";
 
 function SetEmployeeRoot() {
-  const { employees } = useEmployeeStore();
-  const { company } = useCompanyStore();
   const { publicKey, isConnected, network } = useWalletStore();
+  const { signTx } = useStellar();
+  const storedEmployees = useEmployeeStore((state) => state.employees);
+  const rotateCommitmentNonce = useEmployeeStore((state) => state.rotateCommitmentNonce);
   const [contractRoot, setContractRoot] = useState<string | null>(null);
   const [treeRoot, setTreeRoot] = useState<string | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
@@ -26,7 +27,9 @@ function SetEmployeeRoot() {
   const [lastPostedRoot, setLastPostedRoot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const activeEmployees = (employees.length > 0 ? employees : PAYMAGE_TESTNET_EMPLOYEES).filter((e) => e.isActive);
+  const employees = storedEmployees.length > 0 ? storedEmployees : PAYMAGE_TESTNET_EMPLOYEES;
+  const activeEmployees = employees.filter((e) => e.isActive);
+  const isPayrollAdmin = Boolean(publicKey && publicKey === PAYMAGE_PROTOCOL.admin);
 
   const fetchContractRoot = useCallback(async () => {
     if (!env.NEXT_PUBLIC_PAYROLL_CONTRACT) return;
@@ -76,7 +79,8 @@ function SetEmployeeRoot() {
     setIsBuilding(true);
     setError(null);
     try {
-      const slots = await buildPayrollSlots(activeEmployees);
+      const nextCommitmentNonce = rotateCommitmentNonce();
+      const slots = await buildPayrollSlots(activeEmployees, undefined, nextCommitmentNonce);
       const tree = await buildMerkleTree(slots, 10, 10);
       setTreeRoot(tree.root);
       toast.success("Merkle tree built", {
@@ -89,11 +93,69 @@ function SetEmployeeRoot() {
     } finally {
       setIsBuilding(false);
     }
-  }, [activeEmployees]);
+  }, [activeEmployees, rotateCommitmentNonce]);
 
   const handlePostRoot = useCallback(async () => {
     if (!treeRoot || !publicKey || !isConnected) {
       toast.error("Connect wallet and build tree first");
+      return;
+    }
+    if (!isPayrollAdmin) {
+      setIsPosting(true);
+      setError(null);
+      try {
+        const challengeResponse = await fetch(
+          `/api/auth/challenge?publicKey=${encodeURIComponent(publicKey)}`,
+          { cache: "no-store" },
+        );
+        const challenge = await challengeResponse.json();
+        if (!challengeResponse.ok) {
+          throw new Error(challenge.error ?? `Challenge returned ${challengeResponse.status}`);
+        }
+
+        const signedXdr = await signTx(challenge.txXdr);
+        if (!signedXdr) {
+          throw new Error("Wallet challenge signing was cancelled.");
+        }
+
+        const sessionResponse = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            publicKey,
+            token: challenge.token,
+            signedXdr,
+          }),
+        });
+        const sessionBody = await sessionResponse.json();
+        if (!sessionResponse.ok) {
+          throw new Error(sessionBody.error ?? `Session returned ${sessionResponse.status}`);
+        }
+
+        const response = await fetch("/api/admin/workforce-root", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ root: treeRoot }),
+        });
+        const body = await response.json();
+        if (!response.ok || !body.success) {
+          throw new Error(body.error ?? `Delegated root update returned ${response.status}`);
+        }
+
+        setLastPostedRoot(treeRoot);
+        setContractRoot(treeRoot);
+        toast.success("Workforce root posted by delegated admin", {
+          description: `Transaction hash: ${body.txHash}`,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to post delegated root";
+        setError(msg);
+        toast.error("Delegated root update failed", { description: msg });
+      } finally {
+        setIsPosting(false);
+      }
       return;
     }
     setIsPosting(true);
@@ -146,7 +208,7 @@ function SetEmployeeRoot() {
     } finally {
       setIsPosting(false);
     }
-  }, [treeRoot, publicKey, isConnected, network]);
+  }, [treeRoot, publicKey, isConnected, isPayrollAdmin, network, signTx]);
 
   const needsUpdate = treeRoot && treeRoot !== contractRoot;
   const isPosted = lastPostedRoot && lastPostedRoot === contractRoot;
@@ -188,6 +250,15 @@ function SetEmployeeRoot() {
         </div>
       </div>
 
+      {!isPayrollAdmin ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          This connected wallet can post a workforce root through PayMage delegated
+          testnet admin after signing a Freighter challenge. The contract transaction
+          is still submitted by {PAYMAGE_PROTOCOL.admin.slice(0, 6)}...
+          {PAYMAGE_PROTOCOL.admin.slice(-6)}.
+        </div>
+      ) : null}
+
       {error && (
         <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
           <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
@@ -220,7 +291,7 @@ function SetEmployeeRoot() {
           ) : (
             <CheckCircle className="w-4 h-4" />
           )}
-          {isPosted ? "Posted" : needsUpdate ? "Post Root" : "Post Root"}
+          {isPosted ? "Posted" : isPayrollAdmin ? "Post Root" : "Post via Delegated Admin"}
         </button>
       </div>
 

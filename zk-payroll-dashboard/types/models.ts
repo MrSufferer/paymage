@@ -21,7 +21,7 @@ export interface Company {
   isActive: boolean;
 }
 
-export type UserRole = "admin" | "employee";
+export type UserRole = "admin" | "auditor" | "employee";
 
 export interface SessionPayload {
   publicKey: string;
@@ -39,6 +39,9 @@ export interface PayrollTransaction {
   proof: string;
   status: "pending" | "verified" | "failed";
   txHash?: string;
+  ledger?: number;
+  eventType?: "payroll_verified" | "auditor_granted" | "auditor_revoked" | "employee_root_updated";
+  contractId?: string;
 }
 
 export interface PayrollRun extends PayrollTransaction {

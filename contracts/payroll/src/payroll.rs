@@ -352,7 +352,7 @@ impl Payroll {
 
     // ─── Payroll execution ──────────────────────────────────────────────────
 
-    /// Execute a payroll run — verify Groth16 proof, check budget, transfer USDC
+    /// Execute a payroll run — verify Groth16 proof and write the proof ledger.
     ///
     /// # Arguments
     /// * `proof` — Serialized Groth16 proof from browser prover
@@ -367,10 +367,8 @@ impl Payroll {
         public_inputs: Vec<Bn254Fr>,
         ipfs_cids: Vec<(U256, Bytes)>,
     ) -> Result<(), Error> {
-        // 1. Require admin auth for this operation (authorizes token transfer)
-        Self::require_admin(&env)?;
-
-        // 2. Derive employee count from ipfs_cids length
+        // 1. Derive employee count from ipfs_cids length. The transaction source
+        // signs and pays fees; payroll proof validity is enforced by the contract.
         let employee_count = ipfs_cids.len();
 
         // 2. Extract and validate all public inputs from the proof
@@ -506,32 +504,7 @@ impl Payroll {
             .persistent()
             .extend_ttl(&DataKey::BudgetCap, MIN_TTL, EXTEND_TO);
 
-        // 10. Transfer USDC from employer to contract escrow
-        let token = env
-            .storage()
-            .persistent()
-            .get::<_, Address>(&DataKey::Token)
-            .ok_or(Error::TokenNotSet)?;
-        let admin = env
-            .storage()
-            .persistent()
-            .get::<_, Address>(&DataKey::Admin)
-            .ok_or(Error::NotAuthorized)?;
-        let contract_addr = env.current_contract_address();
-
-        let amount_u128 = total_payroll_amount
-            .to_u128()
-            .ok_or(Error::NonCanonicalInput)?;
-        if amount_u128 > i128::MAX.unsigned_abs() {
-            return Err(Error::NonCanonicalInput);
-        }
-        #[allow(clippy::cast_possible_wrap)]
-        let amount_i128 = amount_u128 as i128;
-
-        let token_client = TokenClient::new(&env, &token);
-        token_client.transfer(&admin, &contract_addr, &amount_i128);
-
-        // 11. Emit success event
+        // 10. Emit success event
         PayrollVerifiedEvent {
             period_id: new_period,
             commitment_root: employee_root_u256,
@@ -695,6 +668,13 @@ impl Payroll {
             .persistent()
             .get::<_, CommitmentRecord>(&DataKey::CommitmentRecord(commitment_id))
             .map(|r| (r.commitment_id, r.ipfs_cid))
+    }
+
+    pub fn get_period_commitments(env: Env, period_id: u64) -> Vec<U256> {
+        env.storage()
+            .persistent()
+            .get::<_, Vec<U256>>(&DataKey::PeriodCommitments(period_id))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     pub fn get_current_period(env: Env) -> u64 {

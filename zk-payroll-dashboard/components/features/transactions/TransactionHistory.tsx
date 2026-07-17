@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   ArrowUpRight,
   ArrowDownLeft,
   Download,
   Filter,
   X,
+  RefreshCw,
 } from "lucide-react";
-import { MOCK_TRANSACTIONS, MOCK_EMPLOYEES } from "@/lib/api/mockData";
 import type { PayrollTransaction } from "@/types";
 
 type StatusFilter = "all" | "verified" | "pending" | "failed";
@@ -65,12 +65,56 @@ function downloadCsv(csv: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function eventLabel(tx: PayrollTransaction): string {
+  switch (tx.eventType) {
+    case "payroll_verified":
+      return "Payroll proof verified";
+    case "employee_root_updated":
+      return "Workforce root updated";
+    case "auditor_granted":
+      return "Auditor granted";
+    case "auditor_revoked":
+      return "Auditor revoked";
+    default:
+      return "Protocol event";
+  }
+}
+
+function txExplorerUrl(txHash: string): string {
+  return `https://stellar.expert/explorer/testnet/tx/${txHash}`;
+}
+
 function TransactionHistory() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [showFilters, setShowFilters] = useState(false);
+  const [transactions, setTransactions] = useState<PayrollTransaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTransactions = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/transactions?limit=100", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !body.success) {
+        throw new Error(body?.error?.message ?? `Transactions returned ${response.status}`);
+      }
+      setTransactions(body.data as PayrollTransaction[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load proof ledger");
+      setTransactions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
 
   const filtered = useMemo(() => {
-    let results = [...MOCK_TRANSACTIONS];
+    let results = [...transactions];
 
     if (filters.status !== "all") {
       results = results.filter((t) => t.status === filters.status);
@@ -85,12 +129,9 @@ function TransactionHistory() {
     }
 
     if (filters.employee) {
-      const match = MOCK_EMPLOYEES.find(
-        (e) => e.name.toLowerCase() === filters.employee.toLowerCase(),
+      results = results.filter((t) =>
+        `${t.eventType ?? ""} ${t.proof}`.toLowerCase().includes(filters.employee.toLowerCase()),
       );
-      if (match) {
-        results = results.filter((t) => t.employeeCount > 0);
-      }
     }
 
     if (filters.payrollRun) {
@@ -100,7 +141,7 @@ function TransactionHistory() {
     }
 
     return results;
-  }, [filters]);
+  }, [filters, transactions]);
 
   const activeFilterCount = [
     filters.status !== "all",
@@ -129,6 +170,15 @@ function TransactionHistory() {
             Proof Ledger
           </h3>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadTransactions}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-60 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
@@ -200,7 +250,7 @@ function TransactionHistory() {
               <input
                 id="filter-employee"
                 type="text"
-                placeholder="Search name..."
+                placeholder="Search proof/event..."
                 value={filters.employee}
                 onChange={(e) =>
                   setFilters((f) => ({ ...f, employee: e.target.value }))
@@ -275,6 +325,12 @@ function TransactionHistory() {
           </div>
         )}
 
+        {error ? (
+          <div className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
         <table className="w-full text-left">
           <caption className="sr-only">
             PayMage protocol events with filtering and export
@@ -314,7 +370,16 @@ function TransactionHistory() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200" aria-live="polite">
-            {filtered.length === 0 ? (
+            {isLoading ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-6 py-8 text-center text-sm text-gray-500"
+                >
+                  Loading proof ledger from Stellar testnet...
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td
                   colSpan={5}
@@ -327,7 +392,7 @@ function TransactionHistory() {
               filtered.map((tx) => (
                 <tr key={tx.id}>
                   <td className="px-6 py-4 flex items-center">
-                    {tx.totalAmount > 0 ? (
+                    {tx.eventType === "payroll_verified" ? (
                       <ArrowDownLeft
                         className="w-4 h-4 text-green-600 mr-2"
                         aria-hidden="true"
@@ -338,13 +403,36 @@ function TransactionHistory() {
                         aria-hidden="true"
                       />
                     )}
-                    Employee root sync
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {eventLabel(tx)}
+                      </div>
+                      <div className="font-mono text-xs text-slate-500">
+                        {tx.txHash ? (
+                          <a
+                            href={txExplorerUrl(tx.txHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900"
+                          >
+                            {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
+                            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                          </a>
+                        ) : (
+                          "No tx hash"
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-gray-900">
-                    {tx.employeeCount} employees
+                    {tx.eventType === "payroll_verified"
+                      ? `${tx.employeeCount} employees`
+                      : tx.proof.length > 18
+                        ? `${tx.proof.slice(0, 10)}...${tx.proof.slice(-8)}`
+                        : tx.proof}
                   </td>
                   <td className="px-6 py-4 font-medium text-gray-900">
-                    {tx.totalAmount.toLocaleString()} units
+                    {tx.totalAmount > 0 ? `${tx.totalAmount.toLocaleString()} units` : "-"}
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -360,7 +448,10 @@ function TransactionHistory() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-600">
-                    {new Date(tx.createdAt).toLocaleDateString()}
+                    <div>{new Date(tx.createdAt).toLocaleDateString()}</div>
+                    {tx.ledger ? (
+                      <div className="text-xs text-slate-500">Ledger {tx.ledger.toLocaleString()}</div>
+                    ) : null}
                   </td>
                 </tr>
               ))
@@ -369,7 +460,7 @@ function TransactionHistory() {
         </table>
 
         <div className="px-6 py-3 border-t text-xs text-gray-500">
-          Showing {filtered.length} of {MOCK_TRANSACTIONS.length} protocol events
+          Showing {filtered.length} of {transactions.length} Stellar testnet events
         </div>
       </div>
     </section>

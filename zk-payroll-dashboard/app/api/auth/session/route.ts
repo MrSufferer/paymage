@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as StellarSdk from '@stellar/stellar-sdk';
+import { Server, Api as RpcApi } from '@stellar/stellar-sdk/rpc';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import {
   markNonceUsed,
@@ -10,6 +12,44 @@ import type { UserRole } from '@/types';
 
 // Fail fast at boot when server-only secrets are misconfigured.
 getServerEnv();
+
+async function resolveWalletRole(
+  env: ReturnType<typeof getServerEnv>,
+  publicKey: string,
+): Promise<UserRole> {
+  if (publicKey === env.ADMIN_PUBLIC_KEY) {
+    return 'admin';
+  }
+
+  try {
+    const server = new Server(env.NEXT_PUBLIC_SOROBAN_RPC_URL);
+    const source = await server.getAccount(env.ADMIN_PUBLIC_KEY);
+    const contract = new StellarSdk.Contract(env.NEXT_PUBLIC_PAYROLL_CONTRACT);
+    const tx = new StellarSdk.TransactionBuilder(source, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: StellarSdk.Networks.TESTNET,
+    })
+      .addOperation(
+        contract.call(
+          'is_auditor',
+          StellarSdk.Address.fromString(publicKey).toScVal(),
+        ),
+      )
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (RpcApi.isSimulationError(sim)) {
+      return 'employee';
+    }
+    const isAuditor = sim.result?.retval
+      ? Boolean(StellarSdk.scValToNative(sim.result.retval))
+      : false;
+    return isAuditor ? 'auditor' : 'employee';
+  } catch {
+    return 'employee';
+  }
+}
 
 /**
  * POST /api/auth/session
@@ -59,8 +99,7 @@ export async function POST(request: NextRequest) {
 
     markNonceUsed(challenge.nonce, challenge.expiresAt);
 
-    const role: UserRole =
-      publicKey === env.ADMIN_PUBLIC_KEY ? 'admin' : 'employee';
+    const role = await resolveWalletRole(env, publicKey);
 
     const sessionToken = await createSessionToken(publicKey, role);
     const response = NextResponse.json({ success: true, role });

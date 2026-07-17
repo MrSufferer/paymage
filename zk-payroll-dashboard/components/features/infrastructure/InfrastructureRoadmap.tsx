@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Building2, FileKey2, Globe2, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Building2, CreditCard, FileKey2, Globe2, ShieldCheck } from "lucide-react";
 import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
 
 const upcoming = [
@@ -17,6 +17,13 @@ const upcoming = [
     description:
       "Localized reporting packets for Vietnam-first institutions: employer registry metadata, payroll period export, and auditor-ready disclosure bundles.",
     icon: Building2,
+  },
+  {
+    title: "Fiat on/off ramp",
+    status: "Upcoming",
+    description:
+      "Bank and stablecoin ramp partners for funding payroll and settling employee withdrawals after the core proof-ledger flow is production hardened.",
+    icon: CreditCard,
   },
   {
     title: "Selective disclosure vault",
@@ -42,12 +49,12 @@ function InfrastructureRoadmap() {
       <div className="rounded-md border border-slate-200 bg-white p-6">
         <p className="text-xs font-semibold uppercase text-teal-700">Infrastructure roadmap</p>
         <h1 id="infra-heading" className="mt-2 text-3xl font-semibold text-slate-950">
-          ZK KYC and institutional payroll rails
+          ZK KYC, ramps, and institutional payroll rails
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          PayMage starts with private payroll execution on Stellar testnet. The next layer turns
-          it into a full global payroll infrastructure stack for regulated employers, starting
-          with Vietnam.
+          PayMage starts with working private payroll execution on Stellar testnet. The roadmap
+          adds identity, fiat rails, and corridor integrations after the core proof ledger and
+          auditor disclosure flows.
         </p>
       </div>
 

@@ -17,6 +17,9 @@ export const PAYMAGE_PROTOCOL = {
     "12619325169626986653218159332759082090146355822194684049292146930677168356489",
 } as const;
 
+export const PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID =
+  "paymage-auditor-disclosure-v1";
+
 export const PAYMAGE_TESTNET_EMPLOYEES: Employee[] = Array.from(
   { length: 10 },
   (_, index) => {

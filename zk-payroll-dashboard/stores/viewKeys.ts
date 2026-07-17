@@ -25,6 +25,6 @@ export const useViewKeyStore = create<ViewKeyState>()(
         })),
       setViewKeys: (keys) => set({ viewKeys: keys }),
     }),
-    { name: "zk-payroll-view-keys" },
+    { name: "paymage-view-keys-v2" },
   ),
 );

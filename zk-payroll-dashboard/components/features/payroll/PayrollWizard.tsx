@@ -9,18 +9,19 @@ import {
   ArrowLeft,
   ArrowRight,
   RotateCcw,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { Server } from "@stellar/stellar-sdk/rpc";
 import { usePayrollWizardStore } from "@/stores/payrollWizard";
-import { useEmployeeStore } from "@/stores/employees";
 import { useWalletStore, NETWORK_PASSPHRASES } from "@/stores/walletStore";
+import { useEmployeeStore } from "@/stores/employees";
 import { useStellar } from "@/components/providers/StellarProvider";
 import { zkEngine, isRealZkEngineActive } from "@/lib/zk/engine";
 import { toSorobanScVals, toSorobanScValsFromRealProof } from "@/lib/zk/serialize";
 import { buildMerkleTree } from "@/lib/zk/merkleTree";
-import { PAYMAGE_PROTOCOL, PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
+import { PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID, PAYMAGE_TESTNET_EMPLOYEES } from "@/lib/protocol/paymage";
 import {
   buildPayrollSlots,
   buildZkProofPrivateInputs,
@@ -30,6 +31,7 @@ import {
 import { encryptSalaryBlob, deriveViewKey, serializeEncryptedPayload } from "@/lib/zk/encryption";
 import { uploadToIpfs } from "@/lib/ipfs";
 import { env } from "@/lib/env";
+import { formatStroopsAsXlm } from "@/lib/protocol/tokenFormat";
 import type { PayrollWizardStep, GeneratedPayrollProof } from "@/types";
 
 const STEPS: { key: PayrollWizardStep; label: string }[] = [
@@ -77,8 +79,9 @@ function PayrollWizard() {
     reset,
   } = usePayrollWizardStore();
 
-  const { employees: storedEmployees } = useEmployeeStore();
   const { publicKey, isConnected, network } = useWalletStore();
+  const storedEmployees = useEmployeeStore((state) => state.employees);
+  const commitmentNonce = useEmployeeStore((state) => state.commitmentNonce);
   const { invokeContract } = useStellar();
   const [generatedProof, setGeneratedProof] = useState<GeneratedPayrollProof | null>(null);
   const [contractRoot, setContractRoot] = useState<bigint | null>(null);
@@ -86,8 +89,6 @@ function PayrollWizard() {
   const [isLoadingRoot, setIsLoadingRoot] = useState(false);
   const [salarySlots, setSalarySlots] = useState<PayrollSlot[]>([]);
   const [ipfsCids, setIpfsCids] = useState<Array<{ commitmentId: string; ipfsCid: string }>>([]);
-  const payrollAdmin = PAYMAGE_PROTOCOL.admin;
-  const isPayrollAdminWallet = publicKey === payrollAdmin;
 
   const allEmployees = useMemo(
     () => (storedEmployees.length > 0 ? storedEmployees : PAYMAGE_TESTNET_EMPLOYEES),
@@ -165,7 +166,7 @@ function PayrollWizard() {
       const isReal = isRealZkEngineActive();
 
       // Build the employee Merkle tree from selected employees.
-      const slots = await buildPayrollSlots(selectedEmployees);
+      const slots = await buildPayrollSlots(selectedEmployees, undefined, commitmentNonce);
       setSalarySlots(slots);
       setIpfsCids([]);
       const tree = await buildMerkleTree(slots, 10, 10);
@@ -249,18 +250,18 @@ function PayrollWizard() {
       setProofError(msg);
       toast.error("Proof generation failed", { description: msg });
     }
-  }, [selectedEmployees, totalAmount, contractRoot, currentPeriod, setProofStatus, setProofError, nextStep]);
+  }, [selectedEmployees, totalAmount, contractRoot, currentPeriod, commitmentNonce, setProofStatus, setProofError, nextStep]);
 
   const handleSubmit = useCallback(async () => {
     if (!generatedProof) {
       toast.error("No proof generated. Please go back and generate a proof first.");
       return;
     }
-    if (!isPayrollAdminWallet) {
-      const msg = `Switch Freighter to the payroll admin wallet ${shortAddress(payrollAdmin)} before submitting.`;
+    if (!publicKey || !isConnected) {
+      const msg = "Connect a Stellar Testnet wallet before submitting.";
       setSubmissionStatus("error");
       setSubmissionError(msg);
-      toast.error("Payroll admin wallet required", { description: msg });
+      toast.error("Wallet required", { description: msg });
       return;
     }
 
@@ -273,7 +274,7 @@ function PayrollWizard() {
       // 1. Encrypt salary blobs and upload to IPFS.
       let ipfsCidEntries: Array<{ commitmentId: string; ipfsCid: string }> = [];
       if (salarySlots.length > 0) {
-        const viewKey = await deriveViewKey("payroll-view-key-v1");
+        const viewKey = await deriveViewKey(PAYMAGE_AUDITOR_DISCLOSURE_KEY_ID);
 
         for (const slot of salarySlots) {
           const encrypted = await encryptSalaryBlob(slot.sourceEmployeeId, slot.salaryAmount, slot.salt, viewKey);
@@ -332,7 +333,7 @@ function PayrollWizard() {
       setSubmissionError(msg);
       toast.error("Submission failed", { description: msg });
     }
-  }, [generatedProof, isPayrollAdminWallet, payrollAdmin, salarySlots, selectedEmployees, invokeContract, setSubmissionStatus, setSubmissionError, setTransactionHash, nextStep]);
+  }, [generatedProof, publicKey, isConnected, salarySlots, selectedEmployees, invokeContract, setSubmissionStatus, setSubmissionError, setTransactionHash, nextStep]);
 
   const idx = stepIndex(currentStep);
 
@@ -404,8 +405,7 @@ function PayrollWizard() {
             totalAmount={totalAmount}
             isSubmitting={submissionStatus === "submitting"}
             connectedWallet={publicKey}
-            payrollAdmin={payrollAdmin}
-            canSubmit={isPayrollAdminWallet}
+            canSubmit={Boolean(publicKey && isConnected)}
             onBack={prevStep}
             onSubmit={handleSubmit}
           />
@@ -432,7 +432,7 @@ function ReviewStep({
   onNext,
 }: {
   employeeIds: string[];
-  selectedEmployees: { id: string; name: string; salary: number }[];
+  selectedEmployees: { id: string; name: string; salary: number; department?: string }[];
   totalAmount: number;
   onStart: () => void;
   onNext: () => void;
@@ -457,24 +457,32 @@ function ReviewStep({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-slate-950">Workforce root review</h3>
+      <h3 className="text-sm font-semibold text-slate-950">Workforce commitment review</h3>
       <p className="text-sm text-slate-600">
-        Review the employees committed into the PayMage Merkle root before generating
-        the aggregate payroll proof.
+        Review the same commitment slots shown in Workforce Root before generating
+        the aggregate payroll proof. Individual salary values remain encrypted.
       </p>
       <div className="divide-y rounded-md border border-slate-200">
-        {selectedEmployees.map((emp) => (
+        {selectedEmployees.map((emp, index) => (
           <div key={emp.id} className="px-4 py-3 flex justify-between">
-            <span className="text-sm text-slate-900">{emp.name}</span>
-            <span className="text-sm font-medium text-slate-900">
-              {emp.salary.toLocaleString()} PAYME units
+            <div>
+              <span className="text-sm font-medium text-slate-900">
+                Commitment #{String(index + 1).padStart(3, "0")}
+              </span>
+              <span className="ml-2 font-mono text-xs text-slate-500">
+                slot_{String(index + 1).padStart(3, "0")}
+              </span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-900">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+              Encrypted
             </span>
           </div>
         ))}
       </div>
       <div className="flex justify-between items-center pt-2 border-t">
         <span className="text-sm font-semibold text-slate-950">
-          Total: {totalAmount.toLocaleString()} PAYME units
+          Aggregate total: {formatStroopsAsXlm(totalAmount)}
         </span>
         <button
           type="button"
@@ -569,7 +577,6 @@ function ConfirmStep({
   totalAmount,
   isSubmitting,
   connectedWallet,
-  payrollAdmin,
   canSubmit,
   onBack,
   onSubmit,
@@ -579,7 +586,6 @@ function ConfirmStep({
   totalAmount: number;
   isSubmitting: boolean;
   connectedWallet: string | null;
-  payrollAdmin: string;
   canSubmit: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -606,7 +612,7 @@ function ConfirmStep({
 
       <div className="border border-slate-200 rounded-md p-4 space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-slate-600">Employees</span>
+          <span className="text-slate-600">Commitment slots</span>
           <span className="font-medium text-slate-900">
             {selectedEmployees.length}
           </span>
@@ -614,7 +620,7 @@ function ConfirmStep({
         <div className="flex justify-between text-sm">
           <span className="text-slate-600">Aggregate amount</span>
           <span className="font-medium text-slate-900">
-            {totalAmount.toLocaleString()} PAYME units
+            {formatStroopsAsXlm(totalAmount)}
           </span>
         </div>
         <div className="flex justify-between gap-4 text-sm">
@@ -624,9 +630,9 @@ function ConfirmStep({
           </span>
         </div>
         <div className="flex justify-between gap-4 text-sm">
-          <span className="text-slate-600">Required admin</span>
+          <span className="text-slate-600">Submission signer</span>
           <span className="font-mono text-xs font-medium text-slate-900">
-            {shortAddress(payrollAdmin)}
+            Connected wallet
           </span>
         </div>
       </div>
@@ -637,11 +643,11 @@ function ConfirmStep({
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div>
               <p className="text-sm font-medium text-amber-900">
-                Payroll admin wallet required
+                Wallet connection required
               </p>
               <p className="mt-1 text-sm text-amber-800">
-                This contract requires admin authorization for payroll execution.
-                Switch Freighter to {shortAddress(payrollAdmin)} before submitting.
+                Any funded Stellar Testnet wallet can submit a valid PayMage proof.
+                Connect Freighter before submitting.
               </p>
             </div>
           </div>

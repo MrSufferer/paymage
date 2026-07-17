@@ -3,6 +3,8 @@
 import { Bell, ChevronRight, Circle, User } from "lucide-react";
 import { usePathname } from "next/navigation";
 import WalletConnect from "@/components/features/wallet/WalletConnect";
+import { PAYMAGE_PROTOCOL } from "@/lib/protocol/paymage";
+import { useWalletStore } from "@/stores/walletStore";
 
 const pageLabels: Record<string, string> = {
   "/": "Protocol Console",
@@ -11,14 +13,20 @@ const pageLabels: Record<string, string> = {
   "/history": "Proof Ledger",
   "/treasury": "Treasury",
   "/compliance": "Compliance",
-  "/infrastructure": "ZK KYC Infrastructure",
+  "/infrastructure": "Infrastructure Roadmap",
   "/setup": "Institution Setup",
   "/withdraw": "Employee Withdrawal",
 };
 
 function Header() {
   const pathname = usePathname();
+  const publicKey = useWalletStore((state) => state.publicKey);
   const label = pageLabels[pathname] ?? "Operations";
+  const roleLabel = publicKey
+    ? publicKey === PAYMAGE_PROTOCOL.admin
+      ? "Admin"
+      : "Delegated"
+    : "Viewer";
 
   return (
     <header className="border-b border-slate-200 bg-white px-4 py-3 md:px-6">
@@ -59,7 +67,7 @@ function Header() {
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100">
               <User className="h-5 w-5 text-slate-500" aria-hidden="true" />
             </div>
-            <span className="text-sm font-medium text-slate-700">Admin</span>
+            <span className="text-sm font-medium text-slate-700">{roleLabel}</span>
           </div>
         </div>
       </div>

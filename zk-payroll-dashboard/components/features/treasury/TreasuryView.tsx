@@ -2,13 +2,8 @@
 
 import { AlertTriangle, CheckCircle2, ExternalLink, Landmark, RefreshCw } from "lucide-react";
 import { PAYMAGE_PROTOCOL_TRANSACTIONS } from "@/lib/protocol/paymage";
+import { formatXlm, formatStroopsAsXlm } from "@/lib/protocol/tokenFormat";
 import { useProtocolStatus } from "@/lib/protocol/useProtocolStatus";
-
-function format(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return "Unavailable";
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed.toLocaleString() : String(value);
-}
 
 function TreasuryView() {
   const { data, error, isLoading, refresh } = useProtocolStatus();
@@ -23,7 +18,7 @@ function TreasuryView() {
         <div>
           <p className="text-xs font-semibold uppercase text-teal-700">Treasury</p>
           <h1 id="treasury-heading" className="mt-1 text-3xl font-semibold text-slate-950">
-            PAYME payroll treasury
+            Native token payroll treasury
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             Live SAC balance, budget cap, and payroll policy inputs from the deployed Stellar
@@ -58,9 +53,9 @@ function TreasuryView() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Metric label="Treasury balance" value={`${format(balance)} PAYME`} detail="Admin SAC balance" />
-        <Metric label="Next private payroll" value={`${projectedPayroll.toLocaleString()} units`} detail="10 employees in proof batch" />
-        <Metric label="Budget cap" value={`${format(budgetCap)} PAYME`} detail="Contract policy limit" />
+        <Metric label="Treasury balance" value={formatXlm(balance)} detail="Admin native SAC balance" />
+        <Metric label="Next private payroll" value={formatStroopsAsXlm(projectedPayroll)} detail="10 employees in proof batch" />
+        <Metric label="Budget cap" value={formatXlm(budgetCap)} detail="Contract policy limit" />
       </div>
 
       <article className="rounded-md border border-slate-200 bg-white p-5">
@@ -94,7 +89,7 @@ function TreasuryView() {
               <tr key={tx.id}>
                 <td className="px-5 py-4 text-sm text-slate-900">Employee root sync</td>
                 <td className="px-5 py-4 text-sm font-medium text-slate-900">
-                  {tx.totalAmount.toLocaleString()} units
+                  {tx.totalAmount > 0 ? formatStroopsAsXlm(tx.totalAmount) : "-"}
                 </td>
                 <td className="px-5 py-4">
                   <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-800">

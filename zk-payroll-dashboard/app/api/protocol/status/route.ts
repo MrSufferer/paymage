@@ -22,6 +22,10 @@ function stroopsToUnits(value: string | null): string | null {
   return `${whole}.${fraction}`;
 }
 
+function toU64Arg(value: number): StellarSdk.xdr.ScVal {
+  return StellarSdk.nativeToScVal(value, { type: "u64" });
+}
+
 async function simulateContractCall(
   server: Server,
   source: StellarSdk.Account,
@@ -76,6 +80,26 @@ export async function GET() {
   ]);
 
   const employeeRootDecimal = stringify(employeeRoot);
+  const currentPeriodValue = stringify(currentPeriod);
+  const currentPeriodNumber = Number(currentPeriodValue ?? "0");
+  const latestPayrollPeriod =
+    Number.isInteger(currentPeriodNumber) && currentPeriodNumber > 0
+      ? await simulateContractCall(
+          server,
+          source,
+          env.NEXT_PUBLIC_PAYROLL_CONTRACT,
+          "get_payroll_period",
+          [toU64Arg(currentPeriodNumber)],
+        ).catch(() => null)
+      : null;
+  const latestPeriodAmount =
+    Array.isArray(latestPayrollPeriod) && latestPayrollPeriod.length >= 2
+      ? Number(stringify(latestPayrollPeriod[1]) ?? 0)
+      : null;
+  const latestPeriodEmployeeCount =
+    Array.isArray(latestPayrollPeriod) && latestPayrollPeriod.length >= 3
+      ? Number(stringify(latestPayrollPeriod[2]) ?? 0)
+      : null;
   const budgetCapStroops = stringify(budgetCap);
   const tokenBalanceStroops = stringify(tokenBalance);
 
@@ -100,9 +124,9 @@ export async function GET() {
         : null,
       expectedEmployeeRoot: PAYMAGE_PROTOCOL.expectedEmployeeRoot,
       rootMatchesDemo: employeeRootDecimal === PAYMAGE_PROTOCOL.expectedEmployeeRootDecimal,
-      currentPeriod: stringify(currentPeriod),
-      activeEmployees: PAYMAGE_TESTNET_EMPLOYEES.length,
-      nextPayrollAmount: PAYMAGE_TESTNET_EMPLOYEES.reduce(
+      currentPeriod: currentPeriodValue,
+      activeEmployees: latestPeriodEmployeeCount ?? PAYMAGE_TESTNET_EMPLOYEES.length,
+      nextPayrollAmount: latestPeriodAmount ?? PAYMAGE_TESTNET_EMPLOYEES.reduce(
         (sum, employee) => sum + employee.salary,
         0,
       ),
