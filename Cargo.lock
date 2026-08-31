@@ -3692,7 +3692,6 @@ name = "poseidon-wasm"
 version = "0.1.0"
 dependencies = [
  "ark-ff 0.6.0",
- "getrandom 0.2.17",
  "hex",
  "wasm-bindgen",
  "zkhash",
