@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { MOCK_TRANSACTIONS, MOCK_EMPLOYEES } from "@/lib/api/mockData";
 import type { PayrollTransaction } from "@/types";
+import { usePayrollEvents } from "@/hooks/usePayrollEvents";
 
 type StatusFilter = "all" | "verified" | "pending" | "failed";
 
@@ -68,9 +69,12 @@ function downloadCsv(csv: string, filename: string) {
 function TransactionHistory() {
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [showFilters, setShowFilters] = useState(false);
+  const { events, loading: eventsLoading, error: eventsError, refresh } =
+    usePayrollEvents();
+  const transactions = events.length > 0 ? events : MOCK_TRANSACTIONS;
 
   const filtered = useMemo(() => {
-    let results = [...MOCK_TRANSACTIONS];
+    let results = [...transactions];
 
     if (filters.status !== "all") {
       results = results.filter((t) => t.status === filters.status);
@@ -100,7 +104,7 @@ function TransactionHistory() {
     }
 
     return results;
-  }, [filters]);
+  }, [filters, transactions]);
 
   const activeFilterCount = [
     filters.status !== "all",
@@ -157,6 +161,25 @@ function TransactionHistory() {
               Export CSV
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between border-b bg-gray-50 px-6 py-2 text-xs text-gray-600">
+          <span>
+            {eventsLoading
+              ? "Checking the payroll contract for live events..."
+              : events.length > 0
+                ? "Live events from the payroll contract"
+                : "Showing demo history until live events are available"}
+          </span>
+          {eventsError && (
+            <button
+              type="button"
+              onClick={refresh}
+              className="rounded px-2 py-1 font-medium text-indigo-700 transition-colors duration-100 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
+            >
+              Retry
+            </button>
+          )}
         </div>
 
         {showFilters && (
@@ -338,13 +361,25 @@ function TransactionHistory() {
                         aria-hidden="true"
                       />
                     )}
-                    Payout
+                    {tx.eventType === "WithdrawalEvent"
+                      ? "Withdrawal"
+                      : tx.eventType === "PayrollVerifiedEvent"
+                        ? "Payroll verified"
+                        : "Payout"}
                   </td>
                   <td className="px-6 py-4 text-gray-900">
-                    {tx.employeeCount} employees
+                    {tx.employeeCount > 0
+                      ? `${tx.employeeCount} employees`
+                      : tx.eventType
+                        ? "Payroll contract"
+                        : "Employees"}
                   </td>
                   <td className="px-6 py-4 font-medium text-gray-900">
-                    ${tx.totalAmount.toLocaleString()}
+                    {tx.totalAmount > 0
+                      ? `$${tx.totalAmount.toLocaleString()}`
+                      : tx.eventType
+                        ? "On-chain event"
+                        : "$0"}
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -369,7 +404,7 @@ function TransactionHistory() {
         </table>
 
         <div className="px-6 py-3 border-t text-xs text-gray-500">
-          Showing {filtered.length} of {MOCK_TRANSACTIONS.length} transactions
+          Showing {filtered.length} of {transactions.length} transactions
         </div>
       </div>
     </section>

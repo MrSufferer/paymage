@@ -39,6 +39,7 @@ export interface PayrollTransaction {
   proof: string;
   status: "pending" | "verified" | "failed";
   txHash?: string;
+  eventType?: "PayrollVerifiedEvent" | "WithdrawalEvent";
 }
 
 export interface PayrollRun extends PayrollTransaction {

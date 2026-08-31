@@ -280,3 +280,28 @@ success criteria and planning doc Phase 8-10 tasks.
 - **Event store fixtures**: Pre-seeded event sequences for projection testing (KYCApproved → PayrollRunStarted → PayrollRunCompleted → WithdrawalCompleted)
 - **Ledger fixtures**: Expected debit/credit pairs for each event type; expected running balances after each transaction
 - **Operator fixtures**: Mock operator session with role-based access; test cases for unauthorized access attempts
+
+## 2026-08-31 Submission CI / Dashboard Coverage
+
+The submission-readiness pass added focused tests before implementation (TDD)
+for the new dashboard behavior:
+
+- `__tests__/mobile-nav.test.tsx` verifies the mobile menu exposes Employees,
+  Execute Payroll, and History, and closes through the accessible close control.
+- `__tests__/usePayrollEvents.test.tsx` verifies loading and event polling with
+  a mocked RPC.
+- `lib/stellar/events.test.ts` verifies the two payroll event filters and
+  normalization of a successful contract event.
+
+Fresh focused validation for this pass:
+
+```text
+Test Files  3 passed (3)
+Tests       5 passed (5)
+```
+
+The dashboard workflow runs the full Vitest suite and typecheck on push and
+pull request. Rust contract tests remain the contract-level verification gate;
+large proving keys are intentionally not committed, and the web build now
+compiles without them while warning that browser proving is unavailable until
+the keys are supplied.
