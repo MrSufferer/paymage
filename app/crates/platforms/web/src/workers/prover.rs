@@ -21,15 +21,13 @@ use witness::WitnessCalculator;
 
 const WORKER_NAME: &str = "WORKER-PROVER";
 
-// TODO make it dependent on the network during the compilation
-const PROVING_KEY: &[u8] = include_bytes!(
-    "../../../../../../deployments/testnet/circuit_keys/policy_tx_2_2_proving_key.bin"
-);
-const DISCLOSURE_PROVING_KEY: &[u8] = include_bytes!(
-    "../../../../../../deployments/testnet/circuit_keys/selectiveDisclosure_1_proving_key.bin"
-);
-const PAYROLL_PROVING_KEY: &[u8] =
-    include_bytes!("../../../../../../deployments/testnet/circuit_keys/payroll_20_proving_key.bin");
+mod proving_keys {
+    include!(concat!(env!("OUT_DIR"), "/proving_keys.rs"));
+}
+
+const PROVING_KEY: &[u8] = proving_keys::POLICY_TX_2_2;
+const DISCLOSURE_PROVING_KEY: &[u8] = proving_keys::SELECTIVE_DISCLOSURE_1;
+const PAYROLL_PROVING_KEY: &[u8] = proving_keys::PAYROLL_20;
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
