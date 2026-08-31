@@ -584,3 +584,23 @@ Full implementation of ZK salary withdrawal. Employee generates a PayrollWithdra
 
 1. ~~**All implementation tasks complete** — circuits, contract, prover, UI, deploy.~~ **DONE 2026-07-03**
 2. **Browser E2E**: run payroll + withdraw from dashboard through testnet — requires browser with Freighter wallet.
+
+### Phase 9 Submission Readiness (2026-08-31)
+
+- Canonical lifecycle documents were restored under `docs/ai/`; the root `ai/`
+  migration leftovers were removed.
+- `app/crates/platforms/web/build.rs` now treats gitignored proving keys as
+  optional in CI, emits a warning when they are absent, and generates a safe
+  empty-key module for compilation. Circuit artifacts remain required.
+- Workspace dependency declarations were reconciled with `cargo shear`, and
+  contract builds now include the `payroll` package.
+- GitHub Pages deployment was reduced to manual dispatch because this project
+  deploys the live dashboard through Vercel. A dashboard Actions workflow now
+  runs `npm ci`, `npm run typecheck`, and `npm test`.
+- The dashboard gained an Escape-dismissible, focus-returning mobile navigation
+  drawer and a payroll-contract `getEvents` poller. History renders live
+  `PayrollVerifiedEvent`/`WithdrawalEvent` data and only uses demo rows when the
+  RPC returns no events.
+- A stale `StellarDebugPanel` import was removed from the root dashboard layout;
+  the referenced file is not present in the repository, so it prevented the
+  dashboard typecheck from running.

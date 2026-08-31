@@ -1,8 +1,8 @@
 # DoraHack Project Submission — PayMage
 
 Ready-to-paste fields for the DoraHack project page. Every fact below is sourced
-from the `feature-zk-payroll` worktree (circuits, contracts, dashboard, testnet
-deployment). Replace bracketed placeholders `[...]` with team-specific info.
+from the PayMage repository (circuits, contracts, dashboard, and testnet
+deployment).
 
 ---
 
@@ -123,16 +123,18 @@ PayMage is a payroll-specific zero-knowledge payment system for Stellar:
 
 - **Network:** Stellar Testnet
 - **Deployed contracts** (latest entry in `deployments/testnet/deployments.json`):
-  - Deployer / Admin: `GBBTKIOKPCGILWKYJASL7LL3TSITQMOVTYOL3Q5KG3Y4L7KY4BIXXXJI`
-  - Payroll contract: `CBN3XSKSAN3TFA7HHLQY3MRVU2WXY5MRY4AKIUDTMGQ2LAVKJUXGAPXU`
-  - Payroll verifier: `CCH6JHAQLWARRXBYYSZMJ74IW2PBUGSYDCHAB455QZUE4LYVXDTFNCCV`
-  - Withdraw verifier: `CCJQ4SZNN5DV7NN4KSFC4M6MFNBGPOXC6FBV6BHSJPUWIFGW4M6OQ73C`
+  - Payroll contract: `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF`
+  - Payroll verifier: `CCSE6A4JH4KDWE63XMJ62LZBJTKJY4AEY3Q6FIACTKXZMNAX2NA7HRI6`
+  - Withdraw verifier: `CCARTGQLYGE2TCFFGPNC2B4IXUZJV4Y5QZWNHX4CXEREDLVIB3XYY5DH`
   - USDC token (SAC): `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
-  - Verification keys: `payroll_10_10` (batch) + `payrollWithdraw_10` (withdraw)
 - **Circuit params deployed:** `PayrollBatch(10, 10)` — tree depth 10, batch size 10
 - Dashboard repo: `github.com/MrSufferer/paymage`
-- Demo URL: `[add hosted dashboard URL]`
-- Demo video: `[add Loom/YouTube link]`
+- Demo URL: https://paymage.vercel.app
+- Demo video: https://youtu.be/1mcte2MPRvc
+- Recorded `run_payroll` transaction:
+  https://stellar.expert/explorer/testnet/tx/a27afe6f0bd9ef54cb3dc81658d3965b8e7d8e9f7b8a21e7146941e0cec60993
+- Recorded `withdraw` transaction:
+  https://stellar.expert/explorer/testnet/tx/a511f27bc833e32e6ce252d5ac83b7695ca189207114a6698a5737de5ee68ddb
 
 ## Key Features (bullet list)
 

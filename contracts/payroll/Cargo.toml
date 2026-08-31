@@ -13,7 +13,6 @@ doctest = false
 [dependencies]
 # workspace
 contract-types.workspace = true
-soroban-utils.workspace = true
 
 # external
 soroban-sdk.workspace = true

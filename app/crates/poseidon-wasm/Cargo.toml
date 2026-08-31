@@ -15,7 +15,6 @@ crate-type = ["cdylib", "rlib"]
 zkhash = { workspace = true }
 # external
 ark-ff = { workspace = true }
-getrandom = { version = "0.2", default-features = false, features = ["js"] }
 hex = { workspace = true }
 wasm-bindgen = { workspace = true }
 

@@ -46,7 +46,6 @@ tx-planner = { path = "app/crates/core/tx-planner" }
 types = { path = "app/crates/core/types" }
 witness = { path = "app/crates/core/witness" }
 zkhash = { path = "poseidon2" }
-payroll-prover = { path = "app/crates/payroll-prover" }
 payroll = { path = "contracts/payroll" }
 
 # external
