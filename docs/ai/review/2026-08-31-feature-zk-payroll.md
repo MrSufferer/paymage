@@ -52,6 +52,9 @@ The lockfile now resolves `anyhow 1.0.104`, `crossbeam-epoch 0.9.20`, `h2 0.4.19
 - `cargo test -p payroll`: 21 passed, 0 failed.
 - `cd zk-payroll-dashboard && npm test`: 21 test files passed, 78 tests passed.
 - `cd zk-payroll-dashboard && npm run typecheck`: passed.
+- `npx ai-devkit@latest lint`: passed. Feature lint found all lifecycle files;
+  its only remaining report is the intentionally absent `feature-zk-payroll`
+  worktree branch, which is outside this submission scope.
 - `git diff --check`: passed.
 - [Dashboard Actions run 33378719505](https://github.com/MrSufferer/paymage/actions/runs/33378719505): passed on `main`.
 - [Dependency audit run 33379942151](https://github.com/MrSufferer/paymage/actions/runs/33379942151): passed on `fix/security-audit`.
