@@ -197,9 +197,10 @@ impl Payroll {
     // Initialization
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Initialize the payroll contract — set admin, verifier, token, and initial config.
-    /// Runs once atomically at deploy time (Protocol 22+ host-level one-shot constructor).
-    /// Must be named __constructor and return ().
+    /// Initialize the payroll contract — set admin, verifier, token, and
+    /// initial config. Runs once atomically at deploy time (Protocol 22+
+    /// host-level one-shot constructor). Must be named __constructor and
+    /// return ().
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -352,15 +353,17 @@ impl Payroll {
 
     // ─── Payroll execution ──────────────────────────────────────────────────
 
-    /// Execute a payroll run — verify Groth16 proof, check budget, transfer USDC
+    /// Execute a payroll run — verify Groth16 proof, check budget, transfer
+    /// USDC
     ///
     /// # Arguments
     /// * `proof` — Serialized Groth16 proof from browser prover
-    /// * `public_inputs` — `[employeeRoot, totalPayrollAmount, payrollPeriodId]` as BN254 Fr elements
-    /// * `ipfs_cids` — Vector of `(commitmentId, ipfsCid)` tuples for encrypted salary blobs.
-    ///                 Employee count is derived from `ipfs_cids.len()`.
-    ///                 Note: this matches the number of commitment records stored,
-    ///                 not the circuit's batch size (which includes zero-padded slots).
+    /// * `public_inputs` — `[employeeRoot, totalPayrollAmount,
+    ///   payrollPeriodId]` as BN254 Fr elements
+    /// * `ipfs_cids` — Vector of `(commitmentId, ipfsCid)` tuples for encrypted
+    ///   salary blobs. Employee count is derived from `ipfs_cids.len()`. Note:
+    ///   this matches the number of commitment records stored, not the
+    ///   circuit's batch size (which includes zero-padded slots).
     pub fn run_payroll(
         env: Env,
         proof: Groth16Proof,
@@ -543,7 +546,8 @@ impl Payroll {
         Ok(())
     }
 
-    /// Set the PayrollWithdrawCircuit verifier contract address (employer/admin only)
+    /// Set the PayrollWithdrawCircuit verifier contract address (employer/admin
+    /// only)
     pub fn set_withdraw_verifier(env: Env, verifier: Address) -> Result<(), Error> {
         Self::require_admin(&env)?;
         env.storage()
@@ -560,13 +564,15 @@ impl Payroll {
     /// Withdraw salary via ZK proof (employee self-service).
     ///
     /// Employee generates a PayrollWithdrawCircuit proof proving ownership of a
-    /// salary commitment without revealing their identity. The contract verifies
-    /// the proof, checks the nullifier hasn't been spent, marks it spent, and
-    /// transfers USDC to the caller.
+    /// salary commitment without revealing their identity. The contract
+    /// verifies the proof, checks the nullifier hasn't been spent, marks it
+    /// spent, and transfers USDC to the caller.
     ///
     /// # Arguments
-    /// * `proof` — Serialized Groth16 proof from browser prover (PayrollWithdrawCircuit)
-    /// * `public_inputs` — `[commitmentRoot, commitmentId, nullifier, salaryAmount]` as BN254 Fr elements
+    /// * `proof` — Serialized Groth16 proof from browser prover
+    ///   (PayrollWithdrawCircuit)
+    /// * `public_inputs` — `[commitmentRoot, commitmentId, nullifier,
+    ///   salaryAmount]` as BN254 Fr elements
     pub fn withdraw(
         env: Env,
         proof: Groth16Proof,
@@ -589,7 +595,8 @@ impl Payroll {
             return Err(Error::ProofVerificationFailed);
         }
 
-        // 2. Extract public inputs: [commitmentRoot, commitmentId, nullifier, salaryAmount]
+        // 2. Extract public inputs: [commitmentRoot, commitmentId, nullifier,
+        //    salaryAmount]
         let commitment_root_fe = public_inputs.get(0).ok_or(Error::NonCanonicalInput)?;
         let commitment_id_fe = public_inputs.get(1).ok_or(Error::NonCanonicalInput)?;
         let nullifier_fe = public_inputs.get(2).ok_or(Error::NonCanonicalInput)?;

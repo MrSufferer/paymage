@@ -1,3 +1,8 @@
+#![allow(
+    clippy::arithmetic_side_effects,
+    clippy::unwrap_used,
+    clippy::redundant_closure
+)]
 //! End-to-end payroll test: Merkle tree → witness → Groth16 proof →
 //! on-chain verification → state transition.
 //!
@@ -61,13 +66,15 @@ impl MockVerifier {
 
 // ─── Poseidon2 helpers (matching the circom circuits) ─────────────────────
 
-/// Salary commitment leaf: `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]`.
+/// Salary commitment leaf: `Poseidon2(3)` = `Permutation(4)([emp, sal, salt,
+/// ds])[0]`.
 fn commitment(emp: Scalar, sal: Scalar, salt: Scalar, ds: Scalar) -> Scalar {
     let p = Poseidon2::new(&POSEIDON2_BN256_PARAMS_4);
     p.permutation(&[emp, sal, salt, ds])[0]
 }
 
-/// Merkle internal node: `PoseidonCompress()` = `(Permutation(2)([l, r]) + l)[0]`.
+/// Merkle internal node: `PoseidonCompress()` = `(Permutation(2)([l, r]) +
+/// l)[0]`.
 fn compress(l: Scalar, r: Scalar) -> Scalar {
     let p = Poseidon2::new(&POSEIDON2_BN256_PARAMS_2);
     let out = p.permutation(&[l, r]);
@@ -89,7 +96,8 @@ fn scalar_to_decimal(s: &Scalar) -> String {
     BigInt::from_bytes_be(Sign::Plus, &bytes).to_str_radix(10)
 }
 
-/// Convert a Scalar to a Soroban U256 using from_parts (avoids Bytes conversion).
+/// Convert a Scalar to a Soroban U256 using from_parts (avoids Bytes
+/// conversion).
 fn scalar_to_u256(env: &Env, s: &Scalar) -> U256 {
     let bytes = scalar_to_bytes(s);
     let hi_hi = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
@@ -103,7 +111,8 @@ fn scalar_to_u256(env: &Env, s: &Scalar) -> U256 {
 
 struct MerkleTree {
     root: Scalar,
-    /// Per-slot proofs: `(path_elements, path_indices)` for each of BATCH_SIZE slots.
+    /// Per-slot proofs: `(path_elements, path_indices)` for each of BATCH_SIZE
+    /// slots.
     proofs: std::vec::Vec<(std::vec::Vec<Scalar>, u64)>,
 }
 
@@ -293,8 +302,9 @@ fn e2e_payroll_merkle_witness() -> Result<()> {
     );
 
     // ─── 6. Verify Merkle root is in the witness (public input 0) ──────────
-    // The witness layout: [1, employeeRoot, totalPayrollAmount, payrollPeriodId, ...]
-    // Each field element is 32 bytes little-endian in the witness.
+    // The witness layout: [1, employeeRoot, totalPayrollAmount,
+    // payrollPeriodId, ...] Each field element is 32 bytes little-endian in
+    // the witness.
     let root_from_witness_le = &witness_bytes[32..64]; // skip the "1" element
     let root_from_witness_be: [u8; 32] = {
         let mut buf = [0u8; 32];
@@ -440,8 +450,9 @@ fn e2e_payroll_real_proof() -> Result<()> {
     };
 
     // Convert public inputs to Soroban Vec<Bn254Fr>.
-    // The witness stores field elements in little-endian, but Bn254Fr::from_bytes
-    // expects big-endian, so we reverse each 32-byte chunk.
+    // The witness stores field elements in little-endian, but
+    // Bn254Fr::from_bytes expects big-endian, so we reverse each 32-byte
+    // chunk.
     let mut pub_inputs = soroban_sdk::Vec::new(&env);
     for chunk in public_inputs_bytes.chunks_exact(32) {
         let mut buf: [u8; 32] = chunk.try_into().unwrap();

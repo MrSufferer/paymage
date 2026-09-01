@@ -18,6 +18,9 @@
 //! The output directory is exposed as en environment variable
 //! `std::env::var("CIRCUIT_OUT_DIR")`
 
+#[path = "build/compile_env.rs"]
+mod compile_env;
+
 use anyhow::{Context, Result, anyhow, bail};
 use ark_bn254::Bn254;
 use ark_circom::{CircomBuilder, CircomConfig, CircomReduction};
@@ -140,6 +143,8 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-env-changed=BUILD_TESTS");
     println!("cargo:rerun-if-env-changed=REGEN_KEYS");
     println!("cargo:rerun-if-env-changed=ONLY_KEY_CIRCUITS");
+    println!("cargo:rerun-if-env-changed=SKIP_CIRCOM_COMPILE");
+    println!("cargo:rerun-if-env-changed=ONLY_COMPILE_CIRCUITS");
 
     // Rerun if testdata key files are missing or changed
     let testdata_dir = crate_dir.join("../testdata");
@@ -150,6 +155,13 @@ fn main() -> Result<()> {
                 testdata_dir.join(format!("{stem}{suffix}")).display()
             );
         }
+    }
+
+    // When SKIP_CIRCOM_COMPILE is set, emit the output dir and bail early.
+    // CIRCUIT_OUT_DIR is already exposed; the publish dir was created above.
+    if compile_env::env_truthy(env::var("SKIP_CIRCOM_COMPILE").ok().as_deref()) {
+        println!("cargo:warning=SKIP_CIRCOM_COMPILE set — skipping Circom compilation and keygen");
+        return Ok(());
     }
 
     // === CIRCOMLIB DEPENDENCY ===
@@ -171,7 +183,8 @@ fn main() -> Result<()> {
     let build_tests = env::var("BUILD_TESTS").is_ok();
     if build_tests {
         println!("cargo:warning=Including test circuits in build...");
-        // Re-scan src/ without skipping test directories to include all test circuits
+        // Re-scan src/ without skipping test directories to include all test
+        // circuits
         circom_files = find_circom_files_impl(&src_dir, false);
     } else {
         println!("cargo:warning=Skipping test circuits (set BUILD_TESTS=1 to include)");
@@ -181,6 +194,19 @@ fn main() -> Result<()> {
     if circom_files.is_empty() {
         println!("cargo:warning=No circom files found to compile");
         return Ok(());
+    }
+
+    // When ONLY_COMPILE_CIRCUITS is set, filter to only the listed stems.
+    let only_circuits = env::var("ONLY_COMPILE_CIRCUITS").ok();
+    if only_circuits.is_some() {
+        circom_files.retain(|path| {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            compile_env::circuit_selected(stem, only_circuits.as_deref())
+        });
+        if circom_files.is_empty() {
+            println!("cargo:warning=ONLY_COMPILE_CIRCUITS set but no matching circuits found");
+            return Ok(());
+        }
     }
 
     // === COMPILE EACH CIRCUIT ===
@@ -194,8 +220,8 @@ fn main() -> Result<()> {
         let r1cs_file = out_file.with_extension("r1cs");
         let sym_file = out_file.with_extension("sym");
 
-        // Hardcoded Values for BN128 (also known as BN254) and only R1CS and SYM
-        // compilation
+        // Hardcoded Values for BN128 (also known as BN254) and only R1CS and
+        // SYM compilation
         let prime = BigInt::parse_bytes(
             "21888242871839275222246405745257275088548364400416034343698204186575808495617"
                 .as_bytes(),
@@ -221,13 +247,13 @@ fn main() -> Result<()> {
         Report::print_reports(&report_warns, &program_archive.file_library);
 
         // === CHECK DEPENDENCIES ===
-        // We now extract all included files from the parsed circuit and check if
-        // rebuild is needed This prevents situations where a circuit is not
-        // updated, but its dependencies are
+        // We now extract all included files from the parsed circuit and check
+        // if rebuild is needed This prevents situations where a circuit
+        // is not updated, but its dependencies are
         let dependencies = extract_circom_dependencies(&circom_file, &crate_dir)?;
         for dep_path in &dependencies {
-            // Register each dependency file with cargo so it knows to rebuild when they
-            // change
+            // Register each dependency file with cargo so it knows to rebuild
+            // when they change
             println!("cargo:rerun-if-changed={}", dep_path.display());
         }
 
@@ -248,7 +274,8 @@ fn main() -> Result<()> {
             let sym_modified = fs::metadata(&sym_file)?.modified()?;
             let newest_artifact = r1cs_modified.max(sym_modified);
 
-            // Check if any dependency (including the main file) is newer than artifacts
+            // Check if any dependency (including the main file) is newer than
+            // artifacts
             let needs_rebuild =
                 check_dependencies_need_rebuild(&dependencies, &circom_file, newest_artifact)?;
 
@@ -258,7 +285,8 @@ fn main() -> Result<()> {
                     circom_file.display()
                 );
 
-                // Keep deterministic publish directory updated even on "skip" builds.
+                // Keep deterministic publish directory updated even on "skip"
+                // builds.
                 if wasm_path.exists() {
                     if let Err(e) = publish_circuit_artifacts(
                         &publish_dir,
@@ -271,16 +299,17 @@ fn main() -> Result<()> {
                         );
                     }
                 } else {
-                    // WASM missing: fall through so we can regenerate it instead of silently
-                    // leaving the deterministic directory incomplete.
+                    // WASM missing: fall through so we can regenerate it
+                    // instead of silently leaving the
+                    // deterministic directory incomplete.
                     println!(
                         "cargo:warning=WASM missing for {} - recompiling to restore deterministic artifacts",
                         circuit_name
                     );
                 }
 
-                // Still check if we need to generate keys for circuits that ship PK/VK under
-                // testdata/
+                // Still check if we need to generate keys for circuits that
+                // ship PK/VK under testdata/
                 if circuit_needs_groth16_keys(circuit_name.as_str()) && wasm_path.exists() {
                     match generate_keys_if_needed(&crate_dir, &out_dir, &circuit_name, &r1cs_file) {
                         Ok(_) => {}
@@ -305,7 +334,8 @@ fn main() -> Result<()> {
         Report::print_reports(&report_warns, program_archive.get_file_library());
 
         // === BUILD CONFIG ===
-        // Controls which outputs to generate (R1CS + SYM). The WASM is done later
+        // Controls which outputs to generate (R1CS + SYM). The WASM is done
+        // later
         let build_config = BuildConfig {
             no_rounds: 1,
             flag_json_sub: false,
@@ -366,7 +396,8 @@ fn main() -> Result<()> {
         }
 
         // === GROTH16 Proving/Verifying key generation ===
-        // policy_tx_2_2 and selectiveDisclosure_1 (must match `*.circom` file stem).
+        // policy_tx_2_2 and selectiveDisclosure_1 (must match `*.circom` file
+        // stem).
         if circuit_needs_groth16_keys(circuit_name.as_str()) {
             if !wasm_success {
                 bail!(
@@ -1019,7 +1050,8 @@ fn check_keys_need_generation(
     r1cs_file: &Path,
     force_regen: bool,
 ) -> (bool, String) {
-    // Check if essential key files exist (the 3 needed for proving/verification)
+    // Check if essential key files exist (the 3 needed for
+    // proving/verification)
     let (essential_exist, missing) = check_essential_keys_exist(pk_path, vk_path, vk_soroban_path);
 
     if !essential_exist {
@@ -1187,7 +1219,8 @@ fn generate_keys_if_needed(
                 );
             }
 
-            // Write verification key (const Rust) for potential embedding in contract
+            // Write verification key (const Rust) for potential embedding in
+            // contract
             if let Err(e) = write_verification_key_rust_const(&vk, &vk_const_path) {
                 println!("cargo:warning=Failed to write VK Rust const: {e}");
             } else {

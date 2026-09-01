@@ -188,8 +188,8 @@ fn pool_constructor_sets_state() {
 fn merkle_init_only_once() {
     let env = test_env();
     // As MerkleTreeWithHistory is now a module
-    // We need to register the contract first to access the env.storage of a smart
-    // contract
+    // We need to register the contract first to access the env.storage of a
+    // smart contract
     let setup = setup_test_contracts(&env);
     let max = U256::from_u32(&env, 100);
     let levels = 8u32;

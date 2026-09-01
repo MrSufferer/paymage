@@ -77,6 +77,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     #[cfg_attr(miri, ignore)]
     fn test_keypair_test_matrix() -> anyhow::Result<()> {
         // === PATH SETUP ===

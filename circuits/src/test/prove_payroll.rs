@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::test::utils::circom_tester::{
-        Inputs, SignalKey, generate_keys, prove_and_verify_with_keys,
+    use crate::test::utils::{
+        circom_tester::{Inputs, SignalKey, generate_keys, prove_and_verify_with_keys},
+        general::{load_artifacts, scalar_to_bigint},
     };
-    use crate::test::utils::general::load_artifacts;
-    use crate::test::utils::general::scalar_to_bigint;
     use anyhow::{Context, Result};
     use num_bigint::BigInt;
     use std::panic;
@@ -24,11 +23,12 @@ mod tests {
         let keys = generate_keys(&wasm, &r1cs).context("generate_keys failed")?;
 
         let mut inputs = Inputs::new();
-        inputs.set("employeeRoot", &scalar_to_bigint(Scalar::from(0u64)));
-        // total=9999999 but only one employee with salary=5000000 → sum mismatch
+        inputs.set("employeeRoot", scalar_to_bigint(Scalar::from(0u64)));
+        // total=9999999 but only one employee with salary=5000000 → sum
+        // mismatch
         inputs.set(
             "totalPayrollAmount",
-            &scalar_to_bigint(Scalar::from(9_999_999u64)),
+            scalar_to_bigint(Scalar::from(9_999_999u64)),
         );
         inputs.set("payrollPeriodId", BigInt::from(1));
 
@@ -48,14 +48,14 @@ mod tests {
             } else {
                 Scalar::from(0u64)
             };
-            inputs.set_key(&SignalKey::new("employeeId").idx(i), &scalar_to_bigint(e));
-            inputs.set_key(&SignalKey::new("salaryAmount").idx(i), &scalar_to_bigint(s));
-            inputs.set_key(&SignalKey::new("salt").idx(i), &scalar_to_bigint(sa));
+            inputs.set_key(&SignalKey::new("employeeId").idx(i), scalar_to_bigint(e));
+            inputs.set_key(&SignalKey::new("salaryAmount").idx(i), scalar_to_bigint(s));
+            inputs.set_key(&SignalKey::new("salt").idx(i), scalar_to_bigint(sa));
             inputs.set_key(&SignalKey::new("pathIndices").idx(i), BigInt::from(0));
             for j in 0..LEVELS {
                 inputs.set_key(
                     &SignalKey::new("pathElements").idx(i).idx(j),
-                    &scalar_to_bigint(Scalar::from(0u64)),
+                    scalar_to_bigint(Scalar::from(0u64)),
                 );
             }
         }
@@ -82,10 +82,10 @@ mod tests {
         let keys = generate_keys(&wasm, &r1cs).context("generate_keys failed")?;
 
         let mut inputs = Inputs::new();
-        inputs.set("employeeRoot", &scalar_to_bigint(Scalar::from(1u64))); // non-zero root
+        inputs.set("employeeRoot", scalar_to_bigint(Scalar::from(1u64))); // non-zero root
         inputs.set(
             "totalPayrollAmount",
-            &scalar_to_bigint(Scalar::from(5_000_000u64)),
+            scalar_to_bigint(Scalar::from(5_000_000u64)),
         );
         inputs.set("payrollPeriodId", BigInt::from(1));
 
@@ -105,15 +105,15 @@ mod tests {
             } else {
                 Scalar::from(0u64)
             };
-            inputs.set_key(&SignalKey::new("employeeId").idx(i), &scalar_to_bigint(e));
-            inputs.set_key(&SignalKey::new("salaryAmount").idx(i), &scalar_to_bigint(s));
-            inputs.set_key(&SignalKey::new("salt").idx(i), &scalar_to_bigint(sa));
+            inputs.set_key(&SignalKey::new("employeeId").idx(i), scalar_to_bigint(e));
+            inputs.set_key(&SignalKey::new("salaryAmount").idx(i), scalar_to_bigint(s));
+            inputs.set_key(&SignalKey::new("salt").idx(i), scalar_to_bigint(sa));
             inputs.set_key(&SignalKey::new("pathIndices").idx(i), BigInt::from(0));
             // All-zero path elements won't match any valid Merkle proof
             for j in 0..LEVELS {
                 inputs.set_key(
                     &SignalKey::new("pathElements").idx(i).idx(j),
-                    &scalar_to_bigint(Scalar::from(0u64)),
+                    scalar_to_bigint(Scalar::from(0u64)),
                 );
             }
         }

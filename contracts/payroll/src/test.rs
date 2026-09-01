@@ -90,7 +90,8 @@ fn fr_from_u256(env: &Env, value: &U256) -> Bn254Fr {
     Bn254Fr::from_bytes(BytesN::from_array(env, &buf))
 }
 
-/// Build a mock Groth16 proof (all-zero points — valid structure, not cryptographically valid).
+/// Build a mock Groth16 proof (all-zero points — valid structure, not
+/// cryptographically valid).
 fn mk_mock_groth16_proof(env: &Env) -> Groth16Proof {
     Groth16Proof {
         a: G1Affine::from_array(env, &[0u8; 64]),
@@ -99,7 +100,8 @@ fn mk_mock_groth16_proof(env: &Env) -> Groth16Proof {
     }
 }
 
-/// Build default public inputs for run_payroll: [employeeRoot, totalPayrollAmount, payrollPeriodId].
+/// Build default public inputs for run_payroll: [employeeRoot,
+/// totalPayrollAmount, payrollPeriodId].
 fn default_public_inputs(
     env: &Env,
     employee_root: u32,
@@ -122,9 +124,11 @@ pub struct MockToken;
 #[contractimpl]
 impl MockToken {
     pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+
     pub fn balance_of(_env: Env, _id: Address) -> i128 {
         0
     }
+
     pub fn total_supply(_env: Env) -> i128 {
         0
     }
@@ -137,7 +141,8 @@ fn test_init_sets_admin_and_config() {
 
     assert_eq!(client.get_employee_root(), U256::from_u32(&env, 42));
     assert_eq!(client.get_budget_cap(), U256::from_u32(&env, 1_000_000));
-    // init itself doesn't require auth — require_auth is called in admin methods
+    // init itself doesn't require auth — require_auth is called in admin
+    // methods
 }
 
 #[test]
@@ -366,7 +371,8 @@ fn test_run_payroll_rejects_wrong_employee_root() {
     assert!(result.is_err());
 }
 
-/// T2.9: Non-canonical public input (full 0xFF) → NonCanonicalInput or ProofVerificationFailed.
+/// T2.9: Non-canonical public input (full 0xFF) → NonCanonicalInput or
+/// ProofVerificationFailed.
 #[test]
 fn test_run_payroll_rejects_non_canonical_input() {
     let env = test_env();
@@ -387,8 +393,8 @@ fn test_run_payroll_rejects_non_canonical_input() {
     let ipfs_cids: Vec<(U256, Bytes)> = Vec::new(&env);
 
     let result = client.try_run_payroll(&proof, &public_inputs, &ipfs_cids);
-    // Either the field element gets reduced (becomes != stored root → ProofVerificationFailed)
-    // or the contract rejects it as NonCanonicalInput
+    // Either the field element gets reduced (becomes != stored root →
+    // ProofVerificationFailed) or the contract rejects it as NonCanonicalInput
     assert!(result.is_err());
 }
 
@@ -402,7 +408,8 @@ fn test_run_payroll_rejects_unauthorized_caller() {
     let public_inputs = default_public_inputs(&env, 42, 500_000, 1);
     let ipfs_cids: Vec<(U256, Bytes)> = Vec::new(&env);
 
-    // Call without setting up mock_auths — admin (MockAuthContract) won't authorize
+    // Call without setting up mock_auths — admin (MockAuthContract) won't
+    // authorize
     let result = client.try_run_payroll(&proof, &public_inputs, &ipfs_cids);
     assert!(result.is_err());
 }
@@ -424,7 +431,8 @@ fn test_run_payroll_amount_bound_to_proof() {
     let (_root, amount, _count) = client
         .get_payroll_period(&1u64)
         .expect("period 1 should exist");
-    // The stored amount must equal public_inputs[1], NOT a caller-supplied separate arg
+    // The stored amount must equal public_inputs[1], NOT a caller-supplied
+    // separate arg
     assert_eq!(
         amount,
         U256::from_u32(&env, total_amount),
@@ -493,8 +501,9 @@ fn test_run_payroll_rejects_duplicate_commitment_across_periods() {
 
 // ─── Withdraw tests (T2.13–T2.17) ──────────────────────────────────────
 
-/// Helper: register payroll with a withdraw mock verifier and run an initial payroll.
-/// Returns (env, client, withdrawal_addr) where the payroll has period 1 active.
+/// Helper: register payroll with a withdraw mock verifier and run an initial
+/// payroll. Returns (env, client, withdrawal_addr) where the payroll has period
+/// 1 active.
 fn register_and_run_payroll_with_withdraw_verifier(env: &Env) -> (Address, PayrollClient<'_>) {
     env.mock_all_auths();
     let admin = Address::generate(env);
@@ -535,7 +544,8 @@ fn register_and_run_payroll_with_withdraw_verifier(env: &Env) -> (Address, Payro
     (contract_addr, client)
 }
 
-/// Build withdraw public inputs: [commitmentRoot, commitmentId, nullifier, salaryAmount]
+/// Build withdraw public inputs: [commitmentRoot, commitmentId, nullifier,
+/// salaryAmount]
 fn withdraw_public_inputs(
     env: &Env,
     commitment_root: u32,
@@ -551,7 +561,8 @@ fn withdraw_public_inputs(
     inputs
 }
 
-/// T2.13: Valid withdrawal — proof passes, nullifier marked spent, event emitted.
+/// T2.13: Valid withdrawal — proof passes, nullifier marked spent, event
+/// emitted.
 #[test]
 fn test_withdraw_success() {
     let env = test_env();
@@ -573,7 +584,8 @@ fn test_withdraw_success() {
     assert_eq!(count, 1); // 1 commitment record was stored
 }
 
-/// T2.14: Double-spend — same nullifier submitted twice → NullifierAlreadySpent.
+/// T2.14: Double-spend — same nullifier submitted twice →
+/// NullifierAlreadySpent.
 #[test]
 fn test_withdraw_rejects_double_spend() {
     let env = test_env();
@@ -640,7 +652,8 @@ fn test_withdraw_rejects_fake_proof() {
 fn test_withdraw_rejects_no_verifier() {
     let env = test_env();
     env.mock_all_auths();
-    // withdraw() will fail before reaching recipient.require_auth(), so mock_all_auths is safe.
+    // withdraw() will fail before reaching recipient.require_auth(), so
+    // mock_all_auths is safe.
 
     let admin = Address::generate(&env);
     let token = env.register(MockToken, ());

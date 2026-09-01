@@ -43,6 +43,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn handle_stream(stream: &mut TcpStream) -> Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
 
@@ -84,7 +85,7 @@ fn handle_stream(stream: &mut TcpStream) -> Result<()> {
         body_bytes.to_vec()
     };
     let body = String::from_utf8(body).context("request body was not valid utf-8")?;
-    let response = prove_from_request_body(body)?;
+    let response = prove_from_request_body(&body)?;
     write_json_response(stream, 200, &response)
 }
 
@@ -108,7 +109,10 @@ fn read_remaining_body(
             buffer.extend_from_slice(&chunk[..bytes_read]);
         }
     } else if is_chunked(headers) {
-        while !buffer[body_start..].windows(5).any(|window| window == b"0\r\n\r\n") {
+        while !buffer[body_start..]
+            .windows(5)
+            .any(|window| window == b"0\r\n\r\n")
+        {
             let bytes_read = stream.read(&mut chunk)?;
             if bytes_read == 0 {
                 break;
@@ -145,6 +149,7 @@ fn is_chunked(headers: &str) -> bool {
     })
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn decode_chunked_body(body: &[u8]) -> Result<Vec<u8>> {
     let mut decoded = Vec::new();
     let mut offset = 0usize;
@@ -155,8 +160,8 @@ fn decode_chunked_body(body: &[u8]) -> Result<Vec<u8>> {
             .position(|window| window == b"\r\n")
             .ok_or_else(|| anyhow!("malformed chunked request body"))?
             + offset;
-        let size_line = std::str::from_utf8(&body[offset..line_end])
-            .context("chunk size was not utf-8")?;
+        let size_line =
+            std::str::from_utf8(&body[offset..line_end]).context("chunk size was not utf-8")?;
         let size_hex = size_line.split(';').next().unwrap_or_default().trim();
         let size = usize::from_str_radix(size_hex, 16).context("invalid chunk size")?;
         offset = line_end + 2;
@@ -270,4 +275,31 @@ fn workspace_root() -> PathBuf {
         .parent()
         .expect("workspace root")
         .to_path_buf()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_empty_object() {
+        match prove_from_request_body("{}") {
+            Ok(_) => panic!("expected error for empty object"),
+            Err(err) => assert!(
+                err.to_string().contains("inputsJson"),
+                "expected missing inputsJson error, got: {err}"
+            ),
+        }
+    }
+
+    #[test]
+    fn parse_invalid_json() {
+        match prove_from_request_body("not-json") {
+            Ok(_) => panic!("expected error for invalid JSON"),
+            Err(err) => assert!(
+                err.to_string().contains("parse request JSON"),
+                "expected parse error, got: {err}"
+            ),
+        }
+    }
 }

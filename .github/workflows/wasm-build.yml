@@ -35,10 +35,9 @@ jobs:
         with:
           cache-targets: "true"
 
-      - name: Build circuit artifacts
-        run: cargo build -p circuits
-
       - name: Check the wasm build
+        env:
+          SKIP_CIRCOM_COMPILE: "1"
         run: cargo build -p web --target wasm32-unknown-unknown
 
   wasm-test:

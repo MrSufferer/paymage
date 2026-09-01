@@ -14,3 +14,7 @@ pub mod core;
 /// Test utilities (requires std for file I/O)
 #[cfg(feature = "std")]
 pub mod test;
+
+#[cfg(test)]
+#[path = "../build/compile_env.rs"]
+mod compile_env;

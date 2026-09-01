@@ -138,10 +138,10 @@ fn test_e2e_transact_with_real_proof() -> Result<()> {
     println!("Contracts deployed!");
 
     // Sync on-chain state with off-chain proof data
-    // Since contracts were just deployed, their merkle trees are basically empty.
-    // We need to insert leaves into them to have an state equivalent to what we
-    // used to generate the proof off-chain. Insert membership leaves into ASP
-    // Membership contract
+    // Since contracts were just deployed, their merkle trees are basically
+    // empty. We need to insert leaves into them to have an state equivalent
+    // to what we used to generate the proof off-chain. Insert membership
+    // leaves into ASP Membership contract
     let asp_membership_client = ASPMembershipClient::new(&env, &contracts.asp_membership);
     let asp_non_membership_client =
         ASPNonMembershipClient::new(&env, &contracts.asp_non_membership);

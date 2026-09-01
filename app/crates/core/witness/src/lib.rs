@@ -79,7 +79,8 @@ impl WitnessCalculator {
 
         let inputs_map = inputs.as_object().context("Inputs must be a JSON object")?;
 
-        // Convert to HashMap<String, Vec<BigInt>> by flattening nested structures
+        // Convert to HashMap<String, Vec<BigInt>> by flattening nested
+        // structures
         let mut inputs_hashmap: HashMap<String, Vec<BigInt>> = HashMap::new();
 
         for (key, value) in inputs_map {
@@ -208,8 +209,9 @@ fn flatten_input(
                 if is_pure_array(current_value) {
                     flatten_pure_array(&current_key, current_value, inputs)?;
                 } else {
-                    //  If the array contains objects, we push indexed items in reverse order
-                    // to maintain the original order when popping
+                    //  If the array contains objects, we push indexed items in
+                    // reverse order to maintain the
+                    // original order when popping
                     for (idx, item) in arr.iter().enumerate().rev() {
                         let indexed_key = format!("{}[{}]", current_key, idx);
                         stack.push((indexed_key, item));

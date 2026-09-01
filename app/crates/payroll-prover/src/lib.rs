@@ -19,9 +19,11 @@ use witness::WitnessCalculator;
 /// JSON shape returned to JS.
 #[derive(Serialize)]
 struct ProofResult {
-    /// Uncompressed G1 (64 bytes) || G2 (128 bytes) || G1 (64 bytes) = 256 bytes, hex.
+    /// Uncompressed G1 (64 bytes) || G2 (128 bytes) || G1 (64 bytes) = 256
+    /// bytes, hex.
     proof_hex: String,
-    /// Public inputs as big-endian 32-byte field elements, hex, in circuit order.
+    /// Public inputs as big-endian 32-byte field elements, hex, in circuit
+    /// order.
     public_inputs_hex: Vec<String>,
 }
 
@@ -30,10 +32,12 @@ struct ProofResult {
 /// Circuit-agnostic: accepts any proving key, R1CS, and circom WASM.
 ///
 /// # Arguments (all from JS, bytes are `Uint8Array`)
-/// * `pk_bytes`            — serialized proving key (compressed arkworks format)
+/// * `pk_bytes`            — serialized proving key (compressed arkworks
+///   format)
 /// * `r1cs_bytes`          — R1CS binary (.r1cs file contents)
 /// * `circuit_wasm_bytes`  — circom-compiled witness generator WASM
-/// * `inputs_json`         — JSON string of circuit inputs (same shape circom/snarkjs expect)
+/// * `inputs_json`         — JSON string of circuit inputs (same shape
+///   circom/snarkjs expect)
 ///
 /// # Returns
 /// JSON string `{ proof_hex, public_inputs_hex }`.
@@ -50,7 +54,8 @@ pub fn generate_proof(
         .map_err(|e| JsError::new(&format!("payroll-prover: serialize: {e}")))?)
 }
 
-/// Generate a Groth16 proof for the payroll circuit (backward-compatible alias).
+/// Generate a Groth16 proof for the payroll circuit (backward-compatible
+/// alias).
 #[wasm_bindgen]
 pub fn generate_payroll_proof(
     pk_bytes: &[u8],
@@ -81,8 +86,8 @@ fn inner_generate(
     // 2. Load prover (deserializes the 1 GB PK — this is the expensive step).
     let prover = Prover::new(pk_bytes, r1cs_bytes)?;
 
-    // 3. Generate proof as uncompressed Soroban-ready bytes:
-    //    [A (64) || B (128) || C (64)] = 256 bytes.
+    // 3. Generate proof as uncompressed Soroban-ready bytes: [A (64) || B (128)
+    //    || C (64)] = 256 bytes.
     let proof_uncompressed = prover.prove_bytes_uncompressed(&witness_bytes)?;
 
     // 4. Extract public inputs (big-endian 32-byte Fr elements).

@@ -1,8 +1,8 @@
 use crate::{
     protocol::{
         AdminASPRequest, DisclosureInputsRequest, DisclosureProverRequest, PayrollProverRequest,
-        PayrollProverResponse, PreparedProverTx, PreparedTxPublic, ProverWorkerRequest,
-        ProverWorkerResponse, StorageWorkerRequest, StorageWorkerResponse,
+        PreparedProverTx, PreparedTxPublic, ProverWorkerRequest, ProverWorkerResponse,
+        StorageWorkerRequest, StorageWorkerResponse,
     },
     workers::{prover::ProverWorker, storage::StorageWorker},
 };
@@ -70,7 +70,8 @@ fn emit_progress(
         );
     }
 
-    // Best-effort progress: never fail the transaction flow due to UI callbacks.
+    // Best-effort progress: never fail the transaction flow due to UI
+    // callbacks.
     if cb.call1(&JsValue::NULL, &obj.into()).is_err() {
         log::debug!("[WEBCLIENT] progress callback threw (flow={flow}, stage={stage})");
     }
@@ -943,6 +944,7 @@ fn parse_2d_hex_array(arr: &Array) -> Result<Vec<Vec<Field>>, JsError> {
     Ok(out)
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn parse_u32_array(arr: &Array) -> Result<Vec<u32>, JsError> {
     let len = arr.length();
     let mut out = Vec::with_capacity(len as usize);

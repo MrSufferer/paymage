@@ -6,12 +6,12 @@
 //! hash consistency between the browser tree builder and the on-chain proof.
 //!
 //! Two primitives are exposed, matching `circuits/src/`:
-//! - `poseidon2_commitment`: the salary commitment leaf
-//!   `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]` (ds = 0x01).
+//! - `poseidon2_commitment`: the salary commitment leaf `Poseidon2(3)` =
+//!   `Permutation(4)([emp, sal, salt, ds])[0]` (ds = 0x01).
 //! - `poseidon2_commitment_id`: the withdrawal commitment identifier
 //!   `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]` (ds = 0x02).
-//! - `poseidon2_compress`: the Merkle internal-node hash `PoseidonCompress()`
-//!   = `(Permutation(2)([l, r]) + [l, r])[0]`.
+//! - `poseidon2_compress`: the Merkle internal-node hash `PoseidonCompress()` =
+//!   `(Permutation(2)([l, r]) + [l, r])[0]`.
 //!
 //! Field elements are exchanged as 32-byte big-endian hex strings (no `0x`
 //! prefix), matching the BN254 Fr wire format used everywhere else in this
@@ -75,12 +75,14 @@ fn perm(
     Poseidon2::new(params).permutation(inputs)
 }
 
-/// Salary commitment leaf (core): `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]`.
+/// Salary commitment leaf (core): `Poseidon2(3)` = `Permutation(4)([emp, sal,
+/// salt, ds])[0]`.
 fn commitment_fr(emp: Fr, sal: Fr, salt: Fr, ds: Fr) -> Fr {
     perm(&POSEIDON2_BN256_PARAMS_4, &[emp, sal, salt, ds])[0]
 }
 
-/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]`.
+/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment,
+/// ds])[0]`.
 fn commitment_id_fr(commitment: Fr, ds: Fr) -> Fr {
     perm(&POSEIDON2_BN256_PARAMS_2, &[commitment, ds])[0]
 }
@@ -92,7 +94,8 @@ fn compress_fr(l: Fr, r: Fr) -> Fr {
     out[0] + l
 }
 
-/// Salary commitment leaf: `Poseidon2(3)` = `Permutation(4)([emp, sal, salt, ds])[0]`.
+/// Salary commitment leaf: `Poseidon2(3)` = `Permutation(4)([emp, sal, salt,
+/// ds])[0]`.
 #[wasm_bindgen]
 pub fn poseidon2_commitment(
     employee_id_hex: &str,
@@ -107,7 +110,8 @@ pub fn poseidon2_commitment(
     Ok(fr_to_hex(&commitment_fr(emp, sal, salt, ds)))
 }
 
-/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment, ds])[0]`.
+/// Commitment identifier: `Poseidon2(1)` = `Permutation(2)([commitment,
+/// ds])[0]`.
 #[wasm_bindgen]
 pub fn poseidon2_commitment_id(commitment_hex: &str, ds_hex: &str) -> Result<String, JsValue> {
     let commitment = parse_fr(commitment_hex)?;
@@ -138,12 +142,13 @@ mod tests {
     #[test]
     fn round_trip_hex() {
         let h = "0000000000000000000000000000000000000000000000000000000000000001";
-        let f = parse_fr(h).unwrap();
+        let f = parse_fr(h).expect("valid hex input");
         assert_eq!(fr_to_hex(&f), h);
     }
 
-    /// `poseidon2_commitment` matches a direct `Poseidon2::new(params_4).permutation`
-    /// call — verifies hex parsing, param selection, and output extraction.
+    /// `poseidon2_commitment` matches a direct
+    /// `Poseidon2::new(params_4).permutation` call — verifies hex parsing,
+    /// param selection, and output extraction.
     #[test]
     fn commitment_matches_direct_perm() {
         let emp = Fr::from(42u64);
@@ -192,7 +197,8 @@ mod tests {
         let right = compress_fr(leaf2, leaf3);
         let root = compress_fr(left, right);
 
-        // Re-compute the right child in a different order to ensure no aliasing.
+        // Re-compute the right child in a different order to ensure no
+        // aliasing.
         let right2 = compress_fr(leaf2, leaf3);
         assert_eq!(right, right2);
 

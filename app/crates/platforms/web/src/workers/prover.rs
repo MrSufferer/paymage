@@ -1,13 +1,12 @@
 use crate::protocol::{
-    PayrollProverRequest, PayrollProverResponse, PreparedProverTx, PreparedTxPublic,
-    ProverWorkerRequest, ProverWorkerResponse,
+    PreparedProverTx, PreparedTxPublic, ProverWorkerRequest, ProverWorkerResponse,
 };
 use anyhow::{Context as _, Result};
 use futures::try_join;
 use gloo_timers::future::TimeoutFuture;
 use gloo_worker::{Registrable, oneshot::oneshot};
 use prover::{
-    flows::{PayrollParams, TransactArtifacts, transact},
+    flows::{TransactArtifacts, transact},
     prover::Prover,
 };
 use sha2::{Digest as _, Sha256};
@@ -376,7 +375,8 @@ pub(crate) async fn router(req: ProverWorkerRequest) -> Result<ProverWorkerRespo
             log::debug!("[{WORKER_NAME}] verify disclosure proof");
 
             // Early metadata validation for clear error messages. The actual
-            // VK-byte trust binding lives inside disclosure::verify_receipt_proof.
+            // VK-byte trust binding lives inside
+            // disclosure::verify_receipt_proof.
             disclosure::validate_registered_receipt(&receipt, &expected_vk_hash)?;
 
             let proof_verified = DISCLOSURE_PROVER.with(|cell| {
