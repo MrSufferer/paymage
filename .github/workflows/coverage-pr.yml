@@ -77,52 +77,28 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # 2) Fallback: if no artifact, checkout base commit and compute base coverage here
-      - name: Checkout base
-        if: ${{ steps.base_art.outputs.found == 'false' }}
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
+      # 2) Skip if base artifact is missing (cov-head already measured this PR)
+      - name: Skip comparison when base artifact is missing
+        if: ${{ steps.base_art.outputs.found != 'true' }}
+        run: |
+          echo "No coverage-lcov artifact on ${{ github.event.pull_request.base.ref }}; skipping comparison."
+          echo "cov-head already measured this PR. After merge, coverage.yml on main uploads the baseline."
 
-      - name: Setup Rust (fallback path)
-        if: ${{ steps.base_art.outputs.found == 'false' }}
-        uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
-        with:
-          toolchain: stable
-          components: llvm-tools-preview
-
-      - name: Cache (fallback path)
-        if: ${{ steps.base_art.outputs.found == 'false' }}
-        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2
-
-      - name: Install cargo-llvm-cov (fallback path)
-        if: ${{ steps.base_art.outputs.found == 'false' }}
-        uses: taiki-e/install-action@541dbe11e2898b05bb65bedbd1d0c4e3092b5bdd # cargo-llvm-cov
-        with:
-          tool: cargo-llvm-cov
-
-      - name: Run base coverage (fallback path)
-        if: ${{ steps.base_art.outputs.found == 'false' }}
-        run:
-          SKIP_CIRCOM_COMPILE=1 cargo llvm-cov --workspace --exclude e2e-tests --lcov --output-path base.lcov.info --ignore-filename-regex '^examples/'
-
-      # 3) Extract base coverage (from artifact or from freshly computed fallback)
+      # 3) Compare and comment only when base artifact exists
       - name: Extract total coverage % (base)
+        if: ${{ steps.base_art.outputs.found == 'true' }}
         id: basecov
         shell: bash
         run: |
-          file="coverage-lcov/lcov.info"
-          if [ "${{ steps.base_art.outputs.found }}" != "true" ]; then
-            file="base.lcov.info"
-          fi
           pct=$(awk -F: '
             /^LH:/ {lh += $2}
             /^LF:/ {lf += $2}
             END { if (lf>0) printf "%.2f", (lh/lf)*100; else print "0.00" }
-          ' "$file")
+          ' coverage-lcov/lcov.info)
           echo "coverage=$pct" >> "$GITHUB_OUTPUT"
 
       - name: Find existing coverage comment
+        if: ${{ steps.base_art.outputs.found == 'true' }}
         id: find_comment
         uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e
         with:
@@ -131,6 +107,7 @@ jobs:
           body-includes: "<!-- coverage-bot -->"
 
       - name: Comment only if head < base
+        if: ${{ steps.base_art.outputs.found == 'true' }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
         with:
           script: |
@@ -147,7 +124,7 @@ jobs:
             const delta = (head - base).toFixed(2);
             const body = `<!-- coverage-bot -->
             **Coverage (base → head):** \`${base}% → ${head}%\`  ⬇️ ${Math.abs(delta)} pp
-            _Only posts when PR coverage is lower than the base branch's latest push (or freshly computed base)._
+            _Only posts when PR coverage is lower than the base branch's latest push._
             `;
             const commentId = `${{ steps.find_comment.outputs.comment-id }}`;
             if (commentId) {

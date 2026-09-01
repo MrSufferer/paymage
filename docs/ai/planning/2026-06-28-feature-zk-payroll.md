@@ -55,3 +55,36 @@ Local verification passed:
 - `SKIP_CIRCOM_COMPILE=1 cargo test -p circuits compile_env` — 10/10 pass
 - `SKIP_CIRCOM_COMPILE=1 cargo test -p e2e-tests --bin payroll_prover_service` — 2/2 pass
 - `SKIP_CIRCOM_COMPILE=1 cargo clippy --all-targets --all-features` — clean
+
+### CI.10 — Payroll `is_err()` (superseded)
+Never stayed on this branch. `9205fba` replaced it with the correct `!verified`
+assertion approach. Recorded as superseded here.
+
+### CI.11 — Payroll `!verified` assertions ✅ (done on `9205fba`)
+- `prove_payroll.rs`: T1.2/T1.3 assert `Ok` + `!verified` (not panic, not `is_err()`).
+- Ignored job `33489087030` passed (58m45s).
+- `prove_payroll.rs` is **not touched** in this commit.
+
+### CI.12 — Skip missing-base llvm-cov fallback ✅ (this commit)
+- `coverage-pr.yml`: removed 5 fallback steps (checkout base, Rust toolchain, cache,
+  cargo-llvm-cov install, run base coverage) that ran `cargo llvm-cov` against main's
+  old tree without `SKIP_CIRCOM_COMPILE`.
+- Added skip step when `coverage-lcov` artifact is missing on base branch.
+- Gated extract / find-comment / github-script on `steps.base_art.outputs.found == 'true'`.
+- Root cause: compare-and-comment job (`33489087173` / `99797415669`, 1h2m45s) checked out
+  `main` which lacks `SKIP_CIRCOM_COMPILE`, compiled every circuit + Groth16 keys, then
+  `web/build.rs` failed because WASM/R1CS artifacts were absent → exit 101.
+
+### CI.13 — Docs lockstep (feature `zk-payroll`) ✅ (this commit)
+- Planning: CI.10 superseded, CI.11 green on `9205fba`, CI.12–CI.15 recorded.
+- Testing: T1.2/T1.3 assertion updated to `!res.verified` after successful prove/verify.
+  `CircomBuilder::build()` no longer panics with test-data VKs; proof completes with
+  `verified: false`.
+
+### CI.14 — Local verify ✅ (this commit)
+- YAML parse: `python3 -c "import yaml,pathlib; yaml.safe_load(...)` passed.
+- `SKIP_CIRCOM_COMPILE=1 cargo test -p circuits compile_env` — passed.
+
+### CI.15 — Commit, push, re-check ✅ (this commit)
+Committed `coverage-pr.yml` + three feature docs. Pushed `fix/security-audit`.
+`gh pr checks 3` to verify.
