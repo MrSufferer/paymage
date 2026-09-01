@@ -6,16 +6,16 @@ mod tests {
     };
     use anyhow::{Context, Result};
     use num_bigint::BigInt;
-    use std::panic;
     use zkhash::fields::bn256::FpBN256 as Scalar;
 
     const LEVELS: usize = 10;
     const BATCH_SIZE: usize = 10;
 
-    /// Negative test: salary sum != totalPayrollAmount → build() panics.
+    /// Negative test: salary sum != totalPayrollAmount → proof fails
+    /// verification.
     ///
     /// T1.2: Invalid sum (sum of salaryAmounts ≠ totalPayrollAmount) must
-    /// fail at constraint-check time.
+    /// produce a proof that does not verify.
     #[test]
     #[ignore]
     fn test_payroll_invalid_sum_rejected() -> Result<()> {
@@ -60,21 +60,19 @@ mod tests {
             }
         }
 
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            prove_and_verify_with_keys(&wasm, &r1cs, &inputs, &keys)
-        }));
-
+        let res = prove_and_verify_with_keys(&wasm, &r1cs, &inputs, &keys)
+            .expect("prove_and_verify_with_keys should not error");
         assert!(
-            result.is_err(),
-            "build() should panic when salary sum ≠ totalPayrollAmount"
+            !res.verified,
+            "invalid salary sum must be rejected (proof must not verify)"
         );
         Ok(())
     }
 
-    /// Negative test: incorrect Merkle path → build() panics.
+    /// Negative test: incorrect Merkle path → proof fails verification.
     ///
     /// T1.3: Invalid Merkle proof (all-zero path elements that don't match
-    /// the employee root) must fail at constraint-check time.
+    /// the employee root) must produce a proof that does not verify.
     #[test]
     #[ignore]
     fn test_payroll_invalid_merkle_path_rejected() -> Result<()> {
@@ -118,13 +116,11 @@ mod tests {
             }
         }
 
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            prove_and_verify_with_keys(&wasm, &r1cs, &inputs, &keys)
-        }));
-
+        let res = prove_and_verify_with_keys(&wasm, &r1cs, &inputs, &keys)
+            .expect("prove_and_verify_with_keys should not error");
         assert!(
-            result.is_err(),
-            "build() should panic when Merkle path doesn't match the root"
+            !res.verified,
+            "invalid Merkle path must be rejected (proof must not verify)"
         );
         Ok(())
     }
