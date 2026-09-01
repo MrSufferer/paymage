@@ -22,9 +22,9 @@ description: Test scenarios for ZK payroll — circuit, contract, browser, and E
 
 - [x] **T1.1**: `circom 2.2.2 payroll_20.circom` compiles without error. R1CS (569.6MB), WASM (17.9MB). Public inputs: `[employeeRoot, totalPayrollAmount, payrollPeriodId]`. *(Done 2026-06-29)*
 
-- [x] **T1.2**: Invalid sum — `BUILD_TESTS=1 cargo test -p circuits -- --ignored test_payroll_invalid_sum` passes. Sum constraint violation correctly detected at circuit layer. *(Done 2026-07-02)*
+- [x] **T1.2**: Invalid sum — `BUILD_TESTS=1 cargo test -p circuits -- --ignored test_payroll_invalid_sum` passes. `prove_and_verify()` returns `Ok` with `!res.verified`; the Groth16 proof is generated but the circuit constraints reject the invalid sum. *(Done 2026-07-02, updated 2026-09-01)*
 
-- [x] **T1.3**: Invalid Merkle path — `BUILD_TESTS=1 cargo test -p circuits -- --ignored test_payroll_invalid_merkle_path` passes. Merkle proof constraint violation correctly detected at circuit layer. *(Done 2026-07-02)*
+- [x] **T1.3**: Invalid Merkle path — `BUILD_TESTS=1 cargo test -p circuits -- --ignored test_payroll_invalid_merkle_path` passes. `prove_and_verify()` returns `Ok` with `!res.verified`; the Groth16 proof is generated but the circuit constraints reject the invalid Merkle path. *(Done 2026-07-02, updated 2026-09-01)*
 
 - [ ] **T1.4**: Verification key matches expected hash — `payroll_vk.json` hash matches known-good reference value. (Covers: trusted setup correctness)
 

@@ -1,6 +1,7 @@
 [default]
 extend-ignore-re = [
     "0x[0-9a-fA-F]+", # Hexadecimal numbers
+    "[GS][A-Z2-7]{55}", # Stellar addresses (base32)
 ]
 
 [default.extend-words]

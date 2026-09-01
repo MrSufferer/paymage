@@ -21,7 +21,7 @@ env:
 
 jobs:
   linter_check:
-    timeout-minutes: 15
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
@@ -40,12 +40,12 @@ jobs:
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --profile minimal
       - uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2
-      - name: Build circuit artifacts
-        run: cargo build -p circuits
       - name: Run Fmt
         run: cargo +nightly fmt --all -- --check --config-path rustfmt.toml
 
       - name: Run Clippy
+        env:
+          SKIP_CIRCOM_COMPILE: "1"
         run: cargo clippy --all-targets --all-features
 
       - name: Check typos

@@ -135,11 +135,13 @@ impl<F: PrimeField> Poseidon2<F> {
                 input[2].add_assign(&sum);
             }
             4 => {
-                // Applying cheap 4x4 MDS matrix to each 4-element part of the state
+                // Applying cheap 4x4 MDS matrix to each 4-element part of the
+                // state
                 self.matmul_m4(input);
             }
             8 | 12 | 16 | 20 | 24 => {
-                // Applying cheap 4x4 MDS matrix to each 4-element part of the state
+                // Applying cheap 4x4 MDS matrix to each 4-element part of the
+                // state
                 self.matmul_m4(input);
 
                 // Applying second cheap matrix for t > 4

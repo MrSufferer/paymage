@@ -715,8 +715,8 @@ impl Storage {
         current_root: &Field,
         current_ledger: u32,
     ) -> Result<AspMembershipSync> {
-        // The indexer sync metadata is authoritative for "how far we've indexed", even
-        // if there were no ASP events in recent ledgers.
+        // The indexer sync metadata is authoritative for "how far we've
+        // indexed", even if there were no ASP events in recent ledgers.
         let sync_meta = self
             .get_sync_metadata()?
             .into_iter()
@@ -741,8 +741,10 @@ impl Storage {
         // Get the last stored root for the ASP membership tree and the ledger
         // that produced it. The ledger is derived by joining with the raw event
         // log so we can distinguish:
-        // - "no new ASP events" (root matches, even if last leaf ledger < tip), vs
-        // - "partial processing" (raw events ingested to tip but leaves table lags).
+        // - "no new ASP events" (root matches, even if last leaf ledger < tip),
+        //   vs
+        // - "partial processing" (raw events ingested to tip but leaves table
+        //   lags).
         let mut stmt = self.conn.prepare(
             "SELECT l.root, r.ledger
              FROM asp_membership_leaves l
@@ -767,8 +769,8 @@ impl Storage {
             return Ok(AspMembershipSync::RegisterAtASP);
         };
 
-        // current_ledger == last_fully_indexed_ledger: require root match and leaf
-        // existence.
+        // current_ledger == last_fully_indexed_ledger: require root match and
+        // leaf existence.
         if *current_root != last_root {
             // If the root at the chain tip doesn't match the last stored root
             // but our last stored leaf is from an earlier ledger, we may have

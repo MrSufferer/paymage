@@ -228,7 +228,8 @@ pub struct PayrollProverRequest {
     pub employee_ids: Vec<Field>,
     /// Salary amounts in stroops (BN254 field elements as hex strings).
     pub salary_amounts: Vec<Field>,
-    /// Random salts used when computing commitments (BN254 field elements as hex strings).
+    /// Random salts used when computing commitments (BN254 field elements as
+    /// hex strings).
     pub salts: Vec<Field>,
     /// Merkle proof path elements per employee (field elements as hex strings).
     pub path_elements: Vec<Vec<Field>>,

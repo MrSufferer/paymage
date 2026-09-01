@@ -679,8 +679,8 @@ where
         ],
     );
 
-    // ASP proofs objects, duplicated across input slots, with a single [0] entry
-    // per slot.
+    // ASP proofs objects, duplicated across input slots, with a single [0]
+    // entry per slot.
     for slot in 0..N_INPUTS {
         let prefix_m = format!("membershipProofs[{}][0].", slot);
         circuit.set_single(
@@ -974,7 +974,8 @@ pub fn payroll_proof(params: PayrollParams) -> Result<PayrollArtifacts> {
 
     let mut circuit = CircuitInputs::new();
 
-    // ─── Public inputs ────────────────────────────────────────────────────────
+    // ─── Public inputs
+    // ────────────────────────────────────────────────────────
     circuit.set_single("employeeRoot", &field_to_circuit_hex(&employee_root)?);
     circuit.set_single(
         "totalPayrollAmount",
@@ -985,7 +986,8 @@ pub fn payroll_proof(params: PayrollParams) -> Result<PayrollArtifacts> {
         &field_to_circuit_hex(&payroll_period_id)?,
     );
 
-    // ─── Private inputs ───────────────────────────────────────────────────────
+    // ─── Private inputs
+    // ───────────────────────────────────────────────────────
 
     let mut employee_ids_hex = Vec::with_capacity(n);
     let mut salary_amounts_hex = Vec::with_capacity(n);
@@ -1004,7 +1006,8 @@ pub fn payroll_proof(params: PayrollParams) -> Result<PayrollArtifacts> {
         let pi_field = Field(U256::from(path_indices[i]));
         path_indices_hex.push(field_to_circuit_hex(&pi_field)?);
 
-        // pathElements: array of field elements per level, flattened in the circom format
+        // pathElements: array of field elements per level, flattened in the
+        // circom format
         for pe in &path_elements[i] {
             path_elements_flat_hex.push(field_to_circuit_hex(pe)?);
         }

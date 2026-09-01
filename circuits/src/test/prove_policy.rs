@@ -321,7 +321,8 @@ mod tests {
     #[ignore]
     fn test_tx_1in_1out() -> Result<()> {
         // One real input (in1), one dummy input (in0.amount = 0).
-        // One real output (out0 = in1.amount), one dummy output (out1.amount = 0).
+        // One real output (out0 = in1.amount), one dummy output (out1.amount =
+        // 0).
         let (wasm, r1cs) = policy_artifacts()?;
 
         let case = TxCase::new(
@@ -1243,7 +1244,8 @@ mod tests {
     #[ignore]
     fn test_non_membership_fails() -> Result<()> {
         // One real input (in1), one dummy input (in0.amount = 0).
-        // One real output (out0 = in1.amount), one dummy output (out1.amount = 0).
+        // One real output (out0 = in1.amount), one dummy output (out1.amount =
+        // 0).
         let (wasm, r1cs) = policy_artifacts()?;
 
         let case = TxCase::new(

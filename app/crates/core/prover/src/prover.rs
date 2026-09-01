@@ -150,7 +150,8 @@ impl ConstraintSynthesizer<Fr> for R1CSCircuit {
         // Allocate all variables and store them for constraint generation
         let mut variables: Vec<Variable> = Vec::with_capacity(num_wires);
 
-        // Wire 0 is always the constant 1 (already exists as Variable::One in arkworks)
+        // Wire 0 is always the constant 1 (already exists as Variable::One in
+        // arkworks)
         variables.push(Variable::One);
 
         // Allocate public inputs (wires 1..=num_public)

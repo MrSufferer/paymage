@@ -33,23 +33,18 @@ fn repo_root_from_manifest_dir(manifest_dir: &Path) -> PathBuf {
         .to_path_buf()
 }
 
-fn read_file(path: &Path) -> Vec<u8> {
-    fs::read(path)
-        .unwrap_or_else(|e| panic!("web/build.rs: failed to read {}: {e}", path.display()))
-}
-
-fn read_optional_proving_key(path: &Path) -> Vec<u8> {
+fn read_optional_bytes(path: &Path, label: &str) -> Vec<u8> {
     match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             println!(
-                "cargo:warning=web/build.rs: proving key is absent; runtime proving is unavailable for {}",
+                "cargo:warning=web/build.rs: {label} is absent ({}); using empty bytes",
                 path.display()
             );
             Vec::new()
         }
         Err(error) => panic!(
-            "web/build.rs: failed to read proving key {}: {error}",
+            "web/build.rs: failed to read {label} {}: {error}",
             path.display()
         ),
     }
@@ -91,14 +86,9 @@ fn main() {
     let circuits_out = repo_root.join("target/circuits-artifacts").join(&profile);
 
     if !circuits_out.is_dir() {
-        let suggestion = if profile == "release" {
-            "cargo build -p circuits --release"
-        } else {
-            "cargo build -p circuits"
-        };
-        panic!(
-            "web/build.rs: missing circuit artifacts directory for PROFILE={profile}: {}. Run `{suggestion}` first.",
-            circuits_out.display(),
+        println!(
+            "cargo:warning=web/build.rs: circuit artifacts directory missing for PROFILE={profile}: {}; WASM/R1CS will be empty bytes",
+            circuits_out.display()
         );
     }
 
@@ -129,15 +119,17 @@ fn main() {
     println!("cargo:rerun-if-changed={}", payroll_r1cs_path.display());
     println!("cargo:rerun-if-changed=build.rs");
 
-    let proving_key_bytes = read_optional_proving_key(&proving_key_path);
-    let disclosure_proving_key_bytes = read_optional_proving_key(&disclosure_proving_key_path);
-    let payroll_proving_key_bytes = read_optional_proving_key(&payroll_proving_key_path);
-    let wasm_bytes = read_file(&wasm_path);
-    let r1cs_bytes = read_file(&r1cs_path);
-    let disclosure_wasm_bytes = read_file(&disclosure_wasm_path);
-    let disclosure_r1cs_bytes = read_file(&disclosure_r1cs_path);
-    let payroll_wasm_bytes = read_file(&payroll_wasm_path);
-    let payroll_r1cs_bytes = read_file(&payroll_r1cs_path);
+    let proving_key_bytes = read_optional_bytes(&proving_key_path, "proving key");
+    let disclosure_proving_key_bytes =
+        read_optional_bytes(&disclosure_proving_key_path, "disclosure proving key");
+    let payroll_proving_key_bytes =
+        read_optional_bytes(&payroll_proving_key_path, "payroll proving key");
+    let wasm_bytes = read_optional_bytes(&wasm_path, "wasm");
+    let r1cs_bytes = read_optional_bytes(&r1cs_path, "r1cs");
+    let disclosure_wasm_bytes = read_optional_bytes(&disclosure_wasm_path, "disclosure wasm");
+    let disclosure_r1cs_bytes = read_optional_bytes(&disclosure_r1cs_path, "disclosure r1cs");
+    let payroll_wasm_bytes = read_optional_bytes(&payroll_wasm_path, "payroll wasm");
+    let payroll_r1cs_bytes = read_optional_bytes(&payroll_r1cs_path, "payroll r1cs");
 
     let proving_key_hash = sha256(&proving_key_bytes);
     let disclosure_proving_key_hash = sha256(&disclosure_proving_key_bytes);

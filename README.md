@@ -1,119 +1,168 @@
 # PayMage
 
-Privacy-first payroll on Stellar Soroban: employers prove a payroll batch is
+Privacy-first payroll on Stellar Soroban. Employers prove a payroll batch is
 valid without exposing individual salaries, then employees withdraw through
 zero-knowledge proofs.
 
-- **Live demo:** [paymage.vercel.app](https://paymage.vercel.app)
-- **Demo video:** [Watch the PayMage walkthrough](https://youtu.be/1mcte2MPRvc)
-- **Public repository:** [github.com/MrSufferer/paymage](https://github.com/MrSufferer/paymage)
-- **Network:** Stellar Testnet
+**Try it:** [Open the live demo](https://paymage.vercel.app) ·
+[Watch the demo video](https://youtu.be/1mcte2MPRvc) ·
+[Browse the repository](https://github.com/MrSufferer/paymage)
 
-## Hackathon requirements
+> PayMage is a Stellar Testnet reference implementation. It is not audited
+> and is not intended for production assets.
 
-1. **Advanced smart contracts** — `contracts/payroll/` implements Groth16
-   verification, budget caps, nullifiers, and storage TTL handling.
-2. **Inter-contract communication** — the payroll contract calls the Circom
-   Groth16 verifier and the Stellar Asset Contract through `TokenClient`.
-3. **Event streaming and real-time updates** — contract events are declared in
-   `contracts/payroll/`; the dashboard polls `getEvents` in
-   [`lib/stellar/events.ts`](zk-payroll-dashboard/lib/stellar/events.ts) via
-   [`usePayrollEvents`](zk-payroll-dashboard/hooks/usePayrollEvents.ts) and
-   renders them in History.
-4. **CI/CD** — GitHub Actions runs Rust checks/builds and the dashboard
-   typecheck/tests in [`.github/workflows/`](.github/workflows/).
-5. **Deployment workflow** — the testnet deployment script and recorded
-   addresses live in [`deployments/scripts/deploy-payroll.sh`](deployments/scripts/deploy-payroll.sh)
-   and [`deployments/testnet/deployments.json`](deployments/testnet/deployments.json).
-6. **Mobile frontend** — responsive Tailwind layouts plus an accessible mobile
-   navigation drawer in [`DashboardLayout.tsx`](zk-payroll-dashboard/components/layout/DashboardLayout.tsx),
-   [`Header.tsx`](zk-payroll-dashboard/components/layout/Header.tsx), and
-   [`Sidebar.tsx`](zk-payroll-dashboard/components/layout/Sidebar.tsx).
-7. **Error and loading states** — [`app/loading.tsx`](zk-payroll-dashboard/app/loading.tsx),
-   [`app/error.tsx`](zk-payroll-dashboard/app/error.tsx), `WalletErrorOverlay`,
-   and the payroll wizard proof states cover asynchronous and failure paths.
-8. **Tests** — Rust payroll tests are in [`contracts/payroll/`](contracts/payroll/);
-   the dashboard has Vitest and Playwright coverage in
-   [`zk-payroll-dashboard/`](zk-payroll-dashboard/).
-9. **Architecture** — the repository separates Circom circuits, Soroban
-   contracts, Rust/WASM proving crates, and the Next.js dashboard.
-10. **Documentation and demo** — lifecycle evidence is under [`docs/ai/`](docs/ai/),
-    the submission narrative is [`docs/dorahack-submission.md`](docs/dorahack-submission.md),
-    and the walkthrough is linked above.
+## Why PayMage exists
+
+Payroll needs a verifiable total without publishing every employee’s salary.
+PayMage keeps the payroll total public while commitments, individual salaries,
+and employee-to-payment links stay private on-chain.
+
+The system supports an employer workflow and an employee workflow:
+
+1. An employer commits employees to a Poseidon2 Merkle tree and publishes its
+   root.
+2. The employer generates a Groth16 batch proof. The proof binds the committed
+   salaries to the tree, checks their range, and proves their sum.
+3. The Payroll contract verifies the proof, checks the budget cap, escrows
+   USDC, and records the payroll period.
+4. An employee generates a withdrawal proof. The contract checks the Merkle
+   membership and nullifier, then releases the employee’s USDC.
+
+## Quick start
+
+Run the dashboard locally with Node.js 20 or later:
+
+```bash
+git clone https://github.com/MrSufferer/paymage.git
+cd paymage/zk-payroll-dashboard
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+The example environment targets Stellar Testnet and includes the recorded
+PayMage contract addresses. Set `SESSION_SECRET` to a value with at least 32
+characters before using server-backed authentication.
+
+## Use the dashboard
+
+Open the local dashboard, connect Freighter on Stellar Testnet, and follow the
+payroll flow:
+
+- Add employees and build the commitment tree
+- Review and submit a payroll batch
+- Watch verification and withdrawal events in History
+- Manage encrypted compliance view keys when the workflow requires them
+
+The hosted demo is the best way to review the product flow. The local dashboard
+also includes a mock ZK engine for UI development. A real testnet transaction
+requires a configured prover and wallet.
+
+## Architecture
+
+PayMage separates circuit constraints, Soroban state transitions, proof
+generation, and the operator dashboard:
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Circuits | `circuits/` | Payroll batch and withdrawal constraints using Circom, Groth16, and Poseidon2 |
+| Contracts | `contracts/payroll/` | Proof verification, budget caps, nullifiers, USDC escrow, TTL, and events |
+| Verifiers | `contracts/circom-groth16-verifier/` | BN254 Groth16 verification on Soroban |
+| Prover | `app/crates/payroll-prover/` | Native and WebAssembly proof generation bindings |
+| Dashboard | `zk-payroll-dashboard/` | Next.js UI, Freighter integration, transaction flow, event polling, and tests |
+| Deployment | `deployments/` | Testnet addresses and the payroll deployment script |
+
+For the detailed circuit and contract design, read
+[`docs/dorahack-submission.md`](docs/dorahack-submission.md).
 
 ## Submission checklist
+
+The following links collect the public evidence for the submission:
 
 - [x] [Public GitHub repository](https://github.com/MrSufferer/paymage)
 - [x] [Live demo](https://paymage.vercel.app)
 - [x] [Demo video](https://youtu.be/1mcte2MPRvc)
-- [x] Testnet contract deployment addresses listed below
-- [x] Contract interaction transaction hashes listed below
-- [x] [Mobile responsive UI screenshot](docs/screenshots/mobile-ui.png)
-- [x] [CI/CD pipeline screenshot](docs/screenshots/ci-pipeline.png)
-- [x] [Test output with 3+ passing tests](docs/screenshots/tests-passing.png)
+- [x] [Testnet contract addresses](#testnet-deployment)
+- [x] [Recorded interaction transactions](#recorded-testnet-interactions)
+- [x] [Mobile dashboard screenshot](docs/screenshots/mobile-ui.png)
+- [x] [Mobile navigation screenshot](docs/screenshots/mobile-nav-open.png)
+- [x] [Dashboard CI screenshot](docs/screenshots/ci-pipeline.png)
+- [x] [Dependency audit screenshot](docs/screenshots/ci-security-audit.png)
+- [x] [Passing test output](docs/screenshots/tests-passing.png)
 - [x] [DoraHack submission details](docs/dorahack-submission.md)
 
-## Architecture
+## Testnet deployment
 
-```text
-circuits/                         Circom payroll and withdrawal circuits
-contracts/payroll/                Soroban payroll contract and tests
-app/crates/payroll-prover/        Native/WASM proving bindings
-app/crates/poseidon-wasm/         Browser Poseidon2 primitives
-zk-payroll-dashboard/             Next.js dashboard, wallet, events, and UI
-deployments/                      Testnet deployment scripts and metadata
-docs/ai/                          Lifecycle requirements, design, and evidence
-```
+PayMage’s recorded deployment targets Stellar Testnet:
 
-The employer commits employees into a Merkle tree, proves the batch sum, and
-escrows USDC. The contract verifies the proof and records an event. An employee
-later proves membership and a nullifier to withdraw without exposing the
-corresponding commitment.
-
-## Testnet contracts and interactions
-
-| Component | Address |
+| Contract | Address |
 | --- | --- |
-| Payroll contract | `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF` |
+| Payroll | `CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF` |
 | Payroll verifier | `CCSE6A4JH4KDWE63XMJ62LZBJTKJY4AEY3Q6FIACTKXZMNAX2NA7HRI6` |
 | Withdraw verifier | `CCARTGQLYGE2TCFFGPNC2B4IXUZJV4Y5QZWNHX4CXEREDLVIB3XYY5DH` |
 | Token SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
 
-Recorded testnet interactions:
+The deployment metadata lives in
+[`deployments/testnet/deployments.json`](deployments/testnet/deployments.json),
+and the deployment command lives in
+[`deployments/scripts/deploy-payroll.sh`](deployments/scripts/deploy-payroll.sh).
 
-- [`run_payroll`](https://stellar.expert/explorer/testnet/tx/a27afe6f0bd9ef54cb3dc81658d3965b8e7d8e9f7b8a21e7146941e0cec60993)
-- [`withdraw`](https://stellar.expert/explorer/testnet/tx/a511f27bc833e32e6ce252d5ac83b7695ca189207114a6698a5737de5ee68ddb)
+## Recorded testnet interactions
+
+These links show the two recorded contract interactions in Stellar Expert:
+
+- [`run_payroll` transaction](https://stellar.expert/explorer/testnet/tx/a27afe6f0bd9ef54cb3dc81658d3965b8e7d8e9f7b8a21e7146941e0cec60993)
+- [`withdraw` transaction](https://stellar.expert/explorer/testnet/tx/a511f27bc833e32e6ce252d5ac83b7695ca189207114a6698a5737de5ee68ddb)
 
 ## Screenshots
 
-- [Mobile UI](docs/screenshots/mobile-ui.png)
-- [Tests passing](docs/screenshots/tests-passing.png)
-- [CI pipeline](docs/screenshots/ci-pipeline.png)
+The screenshots show the current dashboard shell, mobile navigation, local
+tests, and public GitHub Actions runs:
 
-## Development and verification
+| Evidence | Preview |
+| --- | --- |
+| Mobile History at 390 × 844 | [![Mobile dashboard](docs/screenshots/mobile-ui.png)](docs/screenshots/mobile-ui.png) |
+| Mobile drawer with dashboard routes | [![Mobile navigation](docs/screenshots/mobile-nav-open.png)](docs/screenshots/mobile-nav-open.png) |
+| Dashboard checks | [![Dashboard CI](docs/screenshots/ci-pipeline.png)](https://github.com/MrSufferer/paymage/actions/runs/33378719505) |
+| Dependency security audit | [![Security audit](docs/screenshots/ci-security-audit.png)](https://github.com/MrSufferer/paymage/actions/runs/33379942151) |
+| Dashboard tests | [![Tests passing](docs/screenshots/tests-passing.png)](docs/screenshots/tests-passing.png) |
+
+## Testing and CI
+
+Run the dashboard checks from its directory:
 
 ```bash
 cd zk-payroll-dashboard
-npm ci
-npm run dev
 npm run typecheck
 npm test
 ```
 
-Rust payroll checks and dependency lint:
+Run the Rust payroll contract tests and dependency check from the repository
+root:
 
 ```bash
 cargo test -p payroll
 cargo shear
 ```
 
-The testnet deployment script is [`deploy-payroll.sh`](deployments/scripts/deploy-payroll.sh).
-Browser/server-proof demos require `PAYROLL_PROVER_URL` to point at a running
-prover service.
+GitHub Actions runs dashboard typechecks and tests through
+[`dashboard.yml`](.github/workflows/dashboard.yml). Rust builds, contract
+builds, WebAssembly checks, dependency audits, and coverage use the workflows
+in [`.github/workflows/`](.github/workflows/).
 
-## Lifecycle documents
+## Development and deployment
 
-The canonical feature documents are grouped under
+Use `NEXT_PUBLIC_ZK_ENGINE=mock` for dashboard-only work. Use the `server`
+engine with `PAYROLL_PROVER_URL` for the server-backed proving flow. The
+`real` engine requires generated proving artifacts, which are intentionally
+excluded from Git.
+
+Build the Rust workspace with Cargo. Build or deploy the testnet contracts with
+the scripts under [`deployments/scripts/`](deployments/scripts/).
+
+## Lifecycle documentation
+
+The canonical feature records are grouped under
 [`docs/ai/requirements/`](docs/ai/requirements/),
 [`docs/ai/design/`](docs/ai/design/),
 [`docs/ai/planning/`](docs/ai/planning/),
@@ -121,11 +170,24 @@ The canonical feature documents are grouped under
 [`docs/ai/testing/`](docs/ai/testing/), and
 [`docs/ai/review/`](docs/ai/review/).
 
-## Status and caveats
+## Security and limitations
 
-- Testnet reference implementation; not audited and not for production assets.
-- `salaryAmount` is a public circuit input during withdrawal; this is a known
-  privacy trade-off in the current design.
-- `PAYROLL_PROVER_URL` is demo infrastructure, not a production prover
-  hosting guarantee.
+PayMage documents its current trade-offs explicitly:
+
+- `salaryAmount` is a public circuit input during withdrawal so the contract
+  can transfer the requested amount. Full amount privacy remains future work.
+- `PAYROLL_PROVER_URL` is demo infrastructure. Production use needs durable
+  hosting, authentication, and operational controls.
+- The contracts target Stellar Testnet and have not received a security audit.
 - Large proving keys are intentionally gitignored and are not committed.
+
+## Status
+
+PayMage is a working Testnet reference implementation with a deployed payroll
+flow, browser and server proving paths, dashboard tests, and recorded
+`run_payroll` and `withdraw` interactions. Treat the current deployment as a
+reviewable demo, not a production payroll service.
+
+## License
+
+See the repository [LICENSE](LICENSE) file.

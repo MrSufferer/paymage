@@ -1,3 +1,4 @@
+#![allow(clippy::arithmetic_side_effects)]
 use anyhow::{Context, Result, anyhow, bail};
 use num_bigint::{BigInt, Sign};
 use prover::prover::Prover;
@@ -23,8 +24,8 @@ use zkhash::{
 const LEVELS: usize = 10;
 const BATCH_SIZE: usize = 10;
 const TOKEN_CONTRACT: &str = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
-// Latest testnet payroll contract (deployments/testnet/deployments.json line 6).
-// Override at runtime with `PAYROLL_CONTRACT=...` env var if needed.
+// Latest testnet payroll contract (deployments/testnet/deployments.json line
+// 6). Override at runtime with `PAYROLL_CONTRACT=...` env var if needed.
 const PAYROLL_CONTRACT: &str = "CDSODUB6ZYOB5VZ4GV6MD2NAZ3RA3KZ73RVOBNZMFVXOO7CLLYWTUXNF";
 
 struct MerkleTree {

@@ -32,5 +32,5 @@ jobs:
         run: cargo build -p circuits --release
       - name: Build
         run: BUILD_TESTS=1 cargo test --release --workspace --no-run
-      - name: Run tests
+      - name: Run ignored tests
         run: cargo test --release --workspace -- --ignored
